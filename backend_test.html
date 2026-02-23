@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>L88 Backend Prober</title>
+    <style>
+        body {
+            font-family: system-ui;
+            padding: 20px;
+            background: #f8fafc;
+            color: #1e293b;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        section {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            color: #334155;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        input,
+        button,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #0f172a;
+            color: white;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        pre {
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            overflow-x: auto;
+            max-height: 200px;
+        }
+
+        .log {
+            font-family: monospace;
+            font-size: 0.85rem;
+            padding: 10px;
+            background: #1e293b;
+            color: #f8fafc;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .citation {
+            font-size: 0.8rem;
+            background: #eff6ff;
+            padding: 5px 10px;
+            border-left: 3px solid #3b82f6;
+            margin-top: 5px;
+        }
+
+        .status-pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 99px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            background: #e2e8f0;
+        }
+
+        .active {
+            background: #dcfce7;
+            color: #166534;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>L88 Backend Prober</h1>
+
+    <section id="auth-section">
+        <h2>1. Authentication</h2>
+        <input type="text" id="username" placeholder="Username" value="adithya">
+        <input type="password" id="password" placeholder="Password" value="adithya">
+        <button id="login-btn">Login & Get Token</button>
+        <div id="auth-status" class="status-pill">Disconnected</div>
+    </section>
+
+    <section id="session-section">
+        <h2>2. Session Management</h2>
+        <input type="text" id="session-name" placeholder="Session Name" value="Backend Test Session">
+        <button id="create-session-btn" disabled>Create Session</button>
+        <div id="session-info">Session ID: <span id="current-session-id">None</span></div>
+    </section>
+
+    <section id="doc-section">
+        <h2>3. Document Ingestion</h2>
+        <input type="file" id="file-input" accept=".pdf">
+        <button id="upload-btn" disabled>Upload PDF</button>
+        <div id="upload-status"></div>
+    </section>
+
+    <section id="chat-section">
+        <h2>4. Live RAG Chat</h2>
+        <textarea id="query" placeholder="Ask a question about the document..."></textarea>
+        <button id="send-btn" disabled>Dispatch Query</button>
+        <div id="chat-output"></div>
+    </section>
+
+    <section>
+        <h2>System Logs</h2>
+        <div id="log" class="log">Waiting for actions...</div>
+    </section>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let token = '';
+        let sessionId = '';
+
+        const log = (msg, data = null) => {
+            const el = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML += `<div>[${time}] ${msg}</div>`;
+            if (data) el.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            el.scrollTop = el.scrollHeight;
+        };
+
+        const updateStatus = (id, text, active = false) => {
+            const el = document.getElementById(id);
+            el.innerText = text;
+            el.className = 'status-pill' + (active ? ' active' : '');
+        };
+
+        // 1. LOGIN
+        document.getElementById('login-btn').onclick = async () => {
+            const u = document.getElementById('username').value;
+            const p = document.getElementById('password').value;
+            log(`Attempting login for ${u}...`);
+            try {
+                const res = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: u, password: p })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    token = data.access_token;
+                    log('Login successful!', data);
+                    updateStatus('auth-status', 'Connected', true);
+                    document.getElementById('create-session-btn').disabled = false;
+                } else {
+                    log('Login failed', data);
+                }
+            } catch (e) { log('Error connecting to backend: ' + e.message); }
+        };
+
+        // 2. CREATE SESSION
+        document.getElementById('create-session-btn').onclick = async () => {
+            const name = document.getElementById('session-name').value;
+            log(`Creating session "${name}"...`);
+            try {
+                const res = await fetch(`${API_BASE}/sessions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ name, web_mode: false })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    sessionId = data.id;
+                    document.getElementById('current-session-id').innerText = sessionId;
+                    log('Session created!', data);
+                    document.getElementById('upload-btn').disabled = false;
+                    document.getElementById('send-btn').disabled = false;
+                } else { log('Session creation failed', data); }
+            } catch (e) { log('Error: ' + e.message); }
+        };
+
+        // 3. UPLOAD DOC
+        document.getElementById('upload-btn').onclick = async () => {
+            const fileInput = document.getElementById('file-input');
+            if (!fileInput.files[0]) return log('No file selected');
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            log(`Uploading ${fileInput.files[0].name} to session ${sessionId}...`);
+            document.getElementById('upload-status').innerText = 'Ingesting... (this may take a minute)';
+
+            try {
+                const res = await fetch(`${API_BASE}/sessions/${sessionId}/documents`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    log('Document ingested successfully!', data);
+                    document.getElementById('upload-status').innerText = 'Ready.';
+                    // Automatically select it (if backend doesn't do it)
+                    await fetch(`${API_BASE}/sessions/${sessionId}/documents/${data.id}/select`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ selected: true })
+                    });
+                } else { log('Upload failed', data); document.getElementById('upload-status').innerText = 'Failed.'; }
+            } catch (e) { log('Error: ' + e.message); }
+        };
+
+        // 4. CHAT
+        document.getElementById('send-btn').onclick = async () => {
+            const query = document.getElementById('query').value;
+            if (!query) return;
+
+            log(`Sending query: "${query}"`);
+            const output = document.getElementById('chat-output');
+            output.innerHTML = 'Thinking...';
+
+            try {
+                const res = await fetch(`${API_BASE}/sessions/${sessionId}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ query })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    log('Answer received!', data);
+                    output.innerHTML = `<div style="margin-bottom:15px"><strong>Answer:</strong><br>${data.answer}</div>`;
+                    if (data.citations && data.citations.length > 0) {
+                        output.innerHTML += '<strong>Sources:</strong>';
+                        data.citations.forEach(c => {
+                            output.innerHTML += `<div class="citation"><strong>${c.doc_filename} (p.${c.page}):</strong> ${c.chunk_text}</div>`;
+                        });
+                    }
+                } else { log('Query failed', data); output.innerText = 'Error: ' + (data.detail || 'Query failed'); }
+            } catch (e) { log('Error: ' + e.message); }
+        };
+    </script>
+</body>
+
+</html>

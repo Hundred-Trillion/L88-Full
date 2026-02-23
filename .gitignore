@@ -21,5 +21,16 @@ storage/
 .DS_Store
 Thumbs.db
 
+# Logs
+backend.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Frontend
+l88_frontend/node_modules/
+l88_frontend/dist/
+l88_frontend/.env*
+
 # Gemini agent artifacts
 .gemini/

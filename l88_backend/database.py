@@ -6,7 +6,7 @@ Creates all tables on startup. Seeds hardcoded users on first run.
 
 from contextlib import contextmanager
 
-from passlib.hash import bcrypt
+import bcrypt
 from sqlmodel import SQLModel, Session, create_engine, select
 
 from l88_backend.config import DATABASE_URL, HARDCODED_USERS
@@ -48,7 +48,7 @@ def seed_users():
                 continue
             user = User(
                 username=u["username"],
-                password_hash=bcrypt.hash(u["password"]),
+                password_hash=bcrypt.hashpw(u["password"].encode(), bcrypt.gensalt()).decode(),
                 role=u["role"],
                 display_name=u["display_name"],
             )

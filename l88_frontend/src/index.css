@@ -1,0 +1,100 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-brand-primary: oklch(0.585 0.233 277.117);
+  --color-brand-secondary: oklch(0.627 0.194 273.928);
+  --color-surface-glass: rgba(255, 255, 255, 0.4);
+  --color-surface-glass-dark: rgba(0, 0, 0, 0.4);
+
+  --font-sans: "Inter", "Outfit", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  --shadow-premium: 0 20px 50px -12px rgba(0, 0, 0, 0.1);
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-950 font-sans antialiased selection:bg-indigo-100 selection:text-indigo-900;
+  }
+
+  /* Smooth scroll for the entire app */
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+
+  /* Glassmorphism utility */
+  .glass {
+    @apply backdrop-blur-xl bg-white/40 border border-white/20 shadow-glass;
+  }
+
+  .glass-dark {
+    @apply backdrop-blur-xl bg-black/40 border border-white/10 shadow-glass;
+  }
+
+  /* Animated background mesh gradient */
+  .bg-mesh {
+    background-color: #f8fafc;
+    background-image:
+      radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+      radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
+    background-size: 200% 200%;
+    animation: mesh 15s ease infinite;
+  }
+
+  @keyframes mesh {
+    0% {
+      background-position: 0% 50%
+    }
+
+    50% {
+      background-position: 100% 50%
+    }
+
+    100% {
+      background-position: 0% 50%
+    }
+  }
+
+  /* Premium Card */
+  .premium-card {
+    @apply bg-white rounded-3xl border border-slate-100 shadow-premium transition-all duration-300 hover:shadow-2xl hover:-translate-y-1;
+  }
+
+  /* Typography utilities */
+  .heading-xl {
+    @apply text-5xl font-bold tracking-tight text-slate-900;
+  }
+
+  .text-subtle {
+    @apply text-slate-500 font-medium;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+}
+
+/* Markdown overrides */
+.markdown-body {
+  @apply prose prose-slate max-w-none;
+}
+
+.markdown-body pre {
+  @apply bg-slate-950 rounded-2xl p-4 border border-slate-800 shadow-lg;
+}

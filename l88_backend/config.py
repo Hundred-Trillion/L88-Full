@@ -9,9 +9,10 @@ Edit model names, chunk sizes, retrieval params here only.
 # No registration flow. Add a user → edit this list → restart.
 
 HARDCODED_USERS = [
-    {"username": "alice", "password": "xxxx", "role": "admin",     "display_name": "Alice"},
-    {"username": "bob",   "password": "xxxx", "role": "chat",      "display_name": "Bob"},
-    {"username": "carol", "password": "xxxx", "role": "read_only", "display_name": "Carol"},
+    {"username": "adithya", "password": "adithya",       "role": "admin", "display_name": "Adithya"},
+    {"username": "chetan",  "password": "chetan",        "role": "admin", "display_name": "Chetan"},
+    {"username": "sirius",  "password": "sirius",        "role": "chat",  "display_name": "Sirius"},
+    {"username": "joker",   "password": "whysoserious",  "role": "chat",  "display_name": "Joker"},
 ]
 
 # ── Storage Paths ────────────────────────────────────────────────────

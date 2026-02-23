@@ -14,6 +14,8 @@ interface AuthState {
     login: (username: string, password: string) => Promise<void>;
     logout: () => void;
     isAuthenticated: boolean;
+    effectiveRole: User['role'] | null;
+    setEffectiveRole: (role: User['role']) => void;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);

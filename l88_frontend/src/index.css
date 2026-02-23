@@ -2,84 +2,73 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --color-brand-primary: oklch(0.585 0.233 277.117);
-  --color-brand-secondary: oklch(0.627 0.194 273.928);
-  --color-surface-glass: rgba(255, 255, 255, 0.4);
-  --color-surface-glass-dark: rgba(0, 0, 0, 0.4);
+  --color-brand-primary: #ffffff;
+  --color-brand-secondary: #a1a1aa;
 
-  --font-sans: "Inter", "Outfit", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
 
-  --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-  --shadow-premium: 0 20px 50px -12px rgba(0, 0, 0, 0.1);
+  --shadow-minimal: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+:root {
+  --bg-main: #ffffff;
+  --text-main: #000000;
+  --text-dim: #71717a;
+  --border-subtle: #e5e5e7;
+  --card-bg: #fafafa;
+  --accent: #000000;
+}
+
+[data-theme='dark'] {
+  --bg-main: #000000;
+  --text-main: #f5f5f7;
+  --text-dim: #a1a1aa;
+  --border-subtle: #1c1c1e;
+  --card-bg: #09090b;
+  --accent: #ffffff;
 }
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-950 font-sans antialiased selection:bg-indigo-100 selection:text-indigo-900;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    @apply font-sans antialiased selection:bg-white/10 selection:text-white;
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* Smooth scroll for the entire app */
   html {
     scroll-behavior: smooth;
   }
 }
 
 @layer components {
-
-  /* Glassmorphism utility */
-  .glass {
-    @apply backdrop-blur-xl bg-white/40 border border-white/20 shadow-glass;
+  .noctis-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-subtle);
+    @apply rounded-xl transition-all duration-300;
   }
 
-  .glass-dark {
-    @apply backdrop-blur-xl bg-black/40 border border-white/10 shadow-glass;
+  .noctis-border {
+    border: 1px solid var(--border-subtle);
   }
 
-  /* Animated background mesh gradient */
-  .bg-mesh {
-    background-color: #f8fafc;
-    background-image:
-      radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
-      radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
-    background-size: 200% 200%;
-    animation: mesh 15s ease infinite;
+  .text-noctis-dim {
+    color: var(--text-dim);
   }
 
-  @keyframes mesh {
-    0% {
-      background-position: 0% 50%
-    }
-
-    50% {
-      background-position: 100% 50%
-    }
-
-    100% {
-      background-position: 0% 50%
-    }
+  .bg-noctis-main {
+    background-color: var(--bg-main);
   }
 
-  /* Premium Card */
-  .premium-card {
-    @apply bg-white rounded-3xl border border-slate-100 shadow-premium transition-all duration-300 hover:shadow-2xl hover:-translate-y-1;
-  }
-
-  /* Typography utilities */
-  .heading-xl {
-    @apply text-5xl font-bold tracking-tight text-slate-900;
-  }
-
-  .text-subtle {
-    @apply text-slate-500 font-medium;
+  .bg-noctis-card {
+    background-color: var(--card-bg);
   }
 }
 
-/* Scrollbar styling */
+/* ── Minimalist Scrollbar ─────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -87,14 +76,51 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+  @apply bg-zinc-800/50 rounded-full hover:bg-zinc-700 transition-colors;
 }
 
-/* Markdown overrides */
+/* ── Typography Refinements ────────────────────────────────────────── */
 .markdown-body {
-  @apply prose prose-slate max-w-none;
+  @apply prose max-w-none;
+  color: inherit;
+}
+
+[data-theme='dark'] .markdown-body {
+  @apply prose-invert;
+}
+
+.markdown-body p {
+  @apply leading-relaxed font-normal;
+  color: var(--text-main);
+  opacity: 0.9;
+}
+
+.markdown-body strong {
+  @apply font-bold text-white;
+}
+
+.markdown-body code {
+  @apply font-mono bg-zinc-900/50 px-1.5 py-0.5 rounded-md border border-zinc-800 text-zinc-300;
+  font-size: 0.85em;
 }
 
 .markdown-body pre {
-  @apply bg-slate-950 rounded-2xl p-4 border border-slate-800 shadow-lg;
+  @apply rounded-xl p-6 border bg-black/40 border-zinc-800/80 shadow-2xl;
+}
+
+/* ── Animations ───────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-zen {
+  animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

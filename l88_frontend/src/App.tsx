@@ -1,10 +1,12 @@
 /**
- * App — Root Orchestrator for L88 Vision.
+ * App — Noctis v1 Root Orchestrator.
+ * Seamless, achromatic, minimalist layout.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import LoginPage from './components/LoginPage';
 import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel';
@@ -13,7 +15,8 @@ import type { Session, Document, Message } from './types';
 import * as api from './services/api';
 
 function Dashboard() {
-    const { user } = useAuth();
+    const { user, effectiveRole } = useAuth();
+    const { theme } = useTheme();
 
     /* ── State ── */
     const [sessions, setSessions] = useState<Session[]>([]);
@@ -21,8 +24,10 @@ function Dashboard() {
     const [documents, setDocuments] = useState<Document[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isIngesting, setIsIngesting] = useState(false);
+    const [ingestionStep, setIngestionStep] = useState<'Parsing' | 'Chunking' | 'Indexing' | null>(null);
 
-    /* ── Load sessions on mount ── */
+    /* ── Initial Load ── */
     useEffect(() => {
         api.getSessions().then(data => {
             setSessions(data);
@@ -30,7 +35,7 @@ function Dashboard() {
         }).catch(() => { });
     }, []);
 
-    /* ── Load session data when session changes ── */
+    /* ── Data Sync ── */
     const loadSessionData = useCallback(async (id: string) => {
         try {
             const [msgs, docs] = await Promise.all([
@@ -43,7 +48,7 @@ function Dashboard() {
             setMessages([]);
             setDocuments([]);
         }
-    }, [currentSession?.id]);
+    }, []);
 
     useEffect(() => {
         if (currentSession) loadSessionData(currentSession.id);
@@ -91,7 +96,7 @@ function Dashboard() {
                 confident: res.confident,
                 reasoning: res.reasoning,
                 created_at: new Date().toISOString(),
-                citations: res.citations || [],
+                sources: res.citations || [], // backend calls it citations, UI expects sources
             };
             setMessages(prev => [...prev, assistantMsg]);
         } catch (err: any) {
@@ -99,7 +104,7 @@ function Dashboard() {
                 id: crypto.randomUUID(),
                 session_id: currentSession.id,
                 role: 'assistant',
-                content: `⚠ Error: ${err.message}`,
+                content: `Error: Critical system failure. ${err.message}`,
                 confident: false,
                 reasoning: null,
                 created_at: new Date().toISOString(),
@@ -111,10 +116,29 @@ function Dashboard() {
 
     const handleUpload = async (file: File) => {
         if (!currentSession) return;
+        setIsIngesting(true);
+        setIngestionStep('Parsing');
         try {
             await api.uploadDocument(currentSession.id, file);
+            // Visual progression simulation
+            await new Promise(r => setTimeout(r, 1200));
+            setIngestionStep('Chunking');
+            await new Promise(r => setTimeout(r, 1200));
+            setIngestionStep('Indexing');
+            await new Promise(r => setTimeout(r, 800));
+
             const docs = await api.getDocuments(currentSession.id);
             setDocuments(docs);
+        } finally {
+            setIsIngesting(false);
+            setIngestionStep(null);
+        }
+    };
+
+    const handleAddMember = async (username: string, role: string) => {
+        if (!currentSession) return;
+        try {
+            await api.addMember(currentSession.id, username, role);
         } catch { }
     };
 
@@ -122,9 +146,7 @@ function Dashboard() {
         if (!currentSession) return;
         try {
             await api.toggleDocument(currentSession.id, docId, selected);
-            setDocuments(prev =>
-                prev.map(d => d.id === docId ? { ...d, selected } : d)
-            );
+            setDocuments(prev => prev.map(d => d.id === docId ? { ...d, selected } : d));
         } catch { }
     };
 
@@ -149,7 +171,7 @@ function Dashboard() {
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex h-screen w-full bg-slate-50 text-slate-900 overflow-hidden font-sans"
+            className="flex h-screen w-full bg-noctis-main text-zinc-100 overflow-hidden font-sans selection:bg-white/10"
         >
             <Sidebar
                 sessions={sessions}
@@ -157,6 +179,7 @@ function Dashboard() {
                 onSelect={setCurrentSession}
                 onDelete={handleDeleteSession}
                 onCreate={handleCreateSession}
+                onAddMember={handleAddMember}
             />
 
             <ChatPanel
@@ -176,6 +199,8 @@ function Dashboard() {
                 onToggleDoc={handleToggleDoc}
                 onDeleteDoc={handleDeleteDoc}
                 onDocsChanged={() => currentSession && loadSessionData(currentSession.id)}
+                isIngesting={isIngesting}
+                ingestionStep={ingestionStep}
             />
         </motion.div>
     );
@@ -183,21 +208,22 @@ function Dashboard() {
 
 export default function App() {
     return (
-        <AuthProvider>
-            <AuthGate />
-        </AuthProvider>
+        <ThemeProvider>
+            <AuthProvider>
+                <AuthGate />
+            </AuthProvider>
+        </ThemeProvider>
     );
 }
 
 function AuthGate() {
     const { isAuthenticated } = useAuth();
-
     return (
         <AnimatePresence mode="wait">
-            {isAuthenticated ? (
-                <Dashboard key="dashboard" />
-            ) : (
+            {!isAuthenticated ? (
                 <LoginPage key="login" />
+            ) : (
+                <Dashboard key="dashboard" />
             )}
         </AnimatePresence>
     );

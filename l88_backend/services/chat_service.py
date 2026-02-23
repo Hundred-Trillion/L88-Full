@@ -36,18 +36,10 @@ def run_chat(session_id: str, query: str, user_id: int) -> dict:
     if not session:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Session not found")
 
-    # Validate sources
+    # NOTE: No source validation — if no docs and no web, the router
+    # will route to "chat" and the LLM answers from trained knowledge.
     selected_doc_ids = get_selected_doc_ids(session_id)
-    if session.session_type == "general" and not session.web_mode:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "No sources available. Upload documents or enable web mode.",
-        )
-    if session.session_type == "rag" and not selected_doc_ids and not session.web_mode:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "Select at least one document or enable web mode.",
-        )
+
 
     # Save user message
     user_msg_id = str(uuid.uuid4())

@@ -1,200 +1,254 @@
 /**
- * RightPanel — Noctis v1 Knowledge Ledger.
- * Achromatic, document-centric, analysis focus.
+ * RightPanel — Matches reference design exactly.
+ * 3 stacked sections: Documents, Scratch Pad, Members.
+ * No tabs. Vertically scrollable.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    Check, Library, FileText, Download, Users, Plus,
-    Trash2, BookOpen, Activity, ChevronRight, Save, X
+    FileText, Users, Check, Trash2, Download,
+    Plus, Loader2, Library,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/cn';
-import type { Document, ScratchPad } from '../types';
+import { useAuth } from '../context/AuthContext';
+import type { Document, SessionMember } from '../types';
 import * as api from '../services/api';
+import { cn } from '../lib/cn';
 
 interface Props {
     sessionId: string | null;
     documents: Document[];
     onToggleDoc: (id: string, selected: boolean) => void;
     onDeleteDoc: (id: string) => void;
-    onDocsChanged: () => void;
-    isIngesting?: boolean;
-    ingestionStep?: 'Parsing' | 'Chunking' | 'Indexing' | null;
+    isIngesting: boolean;
 }
 
 export default function RightPanel({
-    sessionId, documents, onToggleDoc, onDeleteDoc, onDocsChanged,
-    isIngesting, ingestionStep
+    sessionId, documents, onToggleDoc, onDeleteDoc, isIngesting,
 }: Props) {
-    const [view, setView] = useState<'library' | 'notes'>('library');
-    const [scratchpad, setScratchpad] = useState<string>('');
-    const [isSaving, setIsSaving] = useState(false);
+    const { effectiveRole } = useAuth();
+    const isAdmin = effectiveRole === 'admin';
+    const canToggle = effectiveRole !== 'read_only';
+
+    /* ── Scratch Pad ── */
+    const [scratchPad, setScratchPad] = useState('');
+    const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
     useEffect(() => {
-        if (sessionId && view === 'notes') {
-            api.getScratchPad(sessionId).then(res => setScratchpad(res.content));
-        }
-    }, [sessionId, view]);
-
-    const handleSaveNotes = async () => {
         if (!sessionId) return;
-        setIsSaving(true);
+        api.getScratchPad(sessionId).then(d => setScratchPad(d?.content || '')).catch(() => { });
+    }, [sessionId]);
+
+    const handleScratchChange = (val: string) => {
+        setScratchPad(val);
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(async () => {
+            if (sessionId) {
+                try { await api.updateScratchPad(sessionId, val); } catch { }
+            }
+        }, 800);
+    };
+
+    const downloadScratchPad = () => {
+        const blob = new Blob([scratchPad], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `l88-notes-${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
+    /* ── Members ── */
+    const [members, setMembers] = useState<SessionMember[]>([]);
+    const [newMemberName, setNewMemberName] = useState('');
+    const [newMemberRole, setNewMemberRole] = useState<string>('chat');
+
+    useEffect(() => {
+        if (!sessionId) return;
+        api.getMembers(sessionId).then(setMembers).catch(() => setMembers([]));
+    }, [sessionId]);
+
+    const handleAddMember = async () => {
+        if (!newMemberName.trim() || !sessionId) return;
         try {
-            await api.updateScratchPad(sessionId, scratchpad);
-        } finally {
-            setIsSaving(false);
-        }
+            await api.addMember(sessionId, newMemberName.trim(), newMemberRole);
+            setNewMemberName('');
+            const updated = await api.getMembers(sessionId);
+            setMembers(updated);
+        } catch { }
+    };
+
+    const handleRemoveMember = async (userId: number) => {
+        if (!sessionId) return;
+        try {
+            await api.removeMember(sessionId, userId);
+            setMembers(prev => prev.filter(m => m.user_id !== userId));
+        } catch { }
     };
 
     return (
-        <aside className="w-80 h-screen flex flex-col bg-noctis-main border-l border-zinc-900 z-20 overflow-hidden">
-            {/* Navigation Tabs */}
-            <div className="flex border-b border-zinc-900 bg-zinc-950/20">
-                <button
-                    onClick={() => setView('library')}
-                    className={cn(
-                        "flex-1 py-4 text-[10px] font-black uppercase tracking-[0.3em] transition-all",
-                        view === 'library' ? "text-white" : "text-zinc-600 hover:text-zinc-400"
-                    )}
-                >
-                    Ledger
-                </button>
-                <div className="w-px h-10 bg-zinc-900 self-center" />
-                <button
-                    onClick={() => setView('notes')}
-                    className={cn(
-                        "flex-1 py-4 text-[10px] font-black uppercase tracking-[0.3em] transition-all",
-                        view === 'notes' ? "text-white" : "text-zinc-600 hover:text-zinc-400"
-                    )}
-                >
-                    Analysis
-                </button>
-            </div>
+        <aside className="w-72 border-l border-neutral-100 dark:border-neutral-900 flex flex-col bg-neutral-50/30 dark:bg-neutral-950/30 overflow-y-auto">
 
-            <div className="flex-1 overflow-y-auto px-6 py-8 custom-scrollbar relative">
-                <AnimatePresence mode="wait">
-                    {view === 'library' ? (
-                        <motion.div
-                            key="library"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="space-y-10"
-                        >
-                            {/* Ingestion Progress */}
-                            {isIngesting && (
-                                <div className="p-5 bg-zinc-950 border border-zinc-800 rounded-xl space-y-4 animate-zen">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Ingestion</span>
-                                        <div className="flex items-center space-x-1">
-                                            <div className={cn("w-1 h-1 rounded-full", ingestionStep === 'Parsing' ? 'bg-white' : 'bg-zinc-800')} />
-                                            <div className={cn("w-1 h-1 rounded-full", ingestionStep === 'Chunking' ? 'bg-white' : 'bg-zinc-800')} />
-                                            <div className={cn("w-1 h-1 rounded-full", ingestionStep === 'Indexing' ? 'bg-white' : 'bg-zinc-800')} />
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center space-x-3">
-                                        <Activity size={12} className="text-white animate-pulse" />
-                                        <span className="text-[10px] font-bold text-zinc-300 uppercase leading-none tracking-tight">
-                                            {ingestionStep}...
-                                        </span>
-                                    </div>
-                                </div>
+            {/* ═══ Documents ═══ */}
+            <div className="p-6 border-b border-neutral-100 dark:border-neutral-900">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500">
+                        Documents
+                    </h2>
+                    <Library size={16} className="text-neutral-300 dark:text-neutral-700" />
+                </div>
+
+                <div className="space-y-2 overflow-y-auto max-h-[40vh]">
+                    {isIngesting && (
+                        <div className="flex items-center space-x-2 p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-900">
+                            <Loader2 size={12} className="spinner text-neutral-400" />
+                            <span className="text-xs text-neutral-500">Processing...</span>
+                        </div>
+                    )}
+
+                    {documents.length === 0 && !isIngesting && (
+                        <p className="text-xs text-neutral-400 dark:text-neutral-600 italic">
+                            No documents uploaded
+                        </p>
+                    )}
+
+                    {documents.map(doc => (
+                        <div
+                            key={doc.id}
+                            onClick={() => canToggle && onToggleDoc(doc.id, !doc.selected)}
+                            className={cn(
+                                "flex items-center p-2.5 rounded-xl border transition-all group",
+                                canToggle ? "cursor-pointer" : "",
+                                doc.selected
+                                    ? "bg-white dark:bg-neutral-900 border-black/10 dark:border-white/10 shadow-sm"
+                                    : "border-transparent hover:bg-neutral-100 dark:hover:bg-neutral-900 opacity-60"
                             )}
-
-                            {/* Documents List */}
-                            <div className="space-y-6">
-                                <div className="flex items-center justify-between px-2">
-                                    <h3 className="text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600">Assets</h3>
-                                    <span className="text-[9px] font-bold text-zinc-800">{documents.length} Total</span>
-                                </div>
-
-                                {documents.length === 0 ? (
-                                    <div className="py-20 flex flex-col items-center justify-center space-y-4 opacity-10">
-                                        <Library size={32} strokeWidth={1} />
-                                        <span className="text-[10px] font-black tracking-widest uppercase">Void</span>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {documents.map((doc) => (
-                                            <div
-                                                key={doc.id}
-                                                className={cn(
-                                                    "group p-3 border rounded-xl transition-all cursor-pointer relative",
-                                                    doc.selected
-                                                        ? "bg-zinc-900/40 border-zinc-800"
-                                                        : "bg-transparent border-transparent hover:border-zinc-900"
-                                                )}
-                                                onClick={() => onToggleDoc(doc.id, !doc.selected)}
-                                            >
-                                                <div className="flex items-center justify-between mb-1">
-                                                    <div className="flex items-center space-x-3 min-w-0">
-                                                        <div className={cn(
-                                                            "w-2 h-2 rounded-full border",
-                                                            doc.selected ? "bg-white border-white" : "border-zinc-800"
-                                                        )} />
-                                                        <span className="text-[11px] font-bold text-zinc-300 truncate tracking-tight">{doc.filename}</span>
-                                                    </div>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); onDeleteDoc(doc.id); }}
-                                                        className="opacity-0 group-hover:opacity-100 p-1 text-zinc-600 hover:text-red-500 transition-all"
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </button>
-                                                </div>
-                                                <div className="flex items-center space-x-3 px-5 text-[8px] font-bold text-zinc-600 uppercase tracking-widest">
-                                                    <span>{doc.page_count} Pages</span>
-                                                    <span className="opacity-20">/</span>
-                                                    <span>{doc.chunk_count} Chunks</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key="notes"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="h-full flex flex-col space-y-6"
                         >
-                            <div className="flex items-center justify-between px-2">
-                                <h3 className="text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600">Analysis Logs</h3>
-                                <button
-                                    onClick={handleSaveNotes}
-                                    disabled={isSaving}
-                                    className="p-1.5 text-zinc-500 hover:text-white transition-colors"
-                                >
-                                    <Save size={14} className={isSaving ? 'animate-pulse' : ''} />
-                                </button>
+                            <div className={cn(
+                                "w-4 h-4 rounded border flex items-center justify-center mr-3 transition-colors shrink-0",
+                                doc.selected
+                                    ? "bg-black dark:bg-white border-black dark:border-white"
+                                    : "border-neutral-300 dark:border-neutral-700"
+                            )}>
+                                {doc.selected && <Check size={10} className="text-white dark:text-black" />}
                             </div>
-
-                            <textarea
-                                value={scratchpad}
-                                onChange={(e) => setScratchpad(e.target.value)}
-                                placeholder="Commence analysis narrative..."
-                                className="flex-1 w-full bg-transparent resize-none outline-none text-sm font-medium leading-relaxed text-zinc-200 placeholder:text-zinc-800 overflow-y-auto custom-scrollbar"
-                            />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium truncate text-black dark:text-white">
+                                    {doc.filename}
+                                </p>
+                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                                    {doc.page_count}p · {doc.chunk_count} chunks
+                                </p>
+                            </div>
+                            {isAdmin && (
+                                <Trash2
+                                    size={12}
+                                    className="opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity shrink-0 cursor-pointer ml-1"
+                                    onClick={e => { e.stopPropagation(); onDeleteDoc(doc.id); }}
+                                />
+                            )}
+                        </div>
+                    ))}
+                </div>
             </div>
 
-            {/* Persistence Bar */}
-            <div className="p-6 border-t border-zinc-900 bg-zinc-950/20">
-                <div className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                        <span className="text-[8px] font-black text-zinc-500 uppercase tracking-[0.2em]">State Pipeline</span>
-                        <span className="text-[10px] font-bold text-zinc-300">Synchronized</span>
-                    </div>
-                    <div className="flex items-center space-x-1.5">
-                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                        <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest">Active</span>
+            {/* ═══ Scratch Pad ═══ */}
+            <div className="p-6 border-b border-neutral-100 dark:border-neutral-900">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500">
+                        Scratch Pad
+                    </h2>
+                    <div className="flex items-center space-x-2">
+                        <button
+                            onClick={downloadScratchPad}
+                            className="p-1 text-neutral-400 dark:text-neutral-500 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                            title="Download notes"
+                        >
+                            <Download size={14} />
+                        </button>
+                        <FileText size={16} className="text-neutral-300 dark:text-neutral-700" />
                     </div>
                 </div>
+                <textarea
+                    value={scratchPad}
+                    onChange={e => handleScratchChange(e.target.value)}
+                    readOnly={!isAdmin}
+                    placeholder={isAdmin ? 'Quick notes...' : 'Read only notes'}
+                    className="w-full h-32 bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-900 rounded-xl p-3 text-xs focus:outline-none focus:border-black dark:focus:border-white transition-all resize-none font-mono text-black dark:text-white disabled:opacity-50"
+                />
+            </div>
+
+            {/* ═══ Members ═══ */}
+            <div className="p-6 flex-1 flex flex-col">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500">
+                        Members
+                    </h2>
+                    <Users size={16} className="text-neutral-300 dark:text-neutral-700" />
+                </div>
+
+                <div className="space-y-4 flex-1">
+                    {members.map(m => (
+                        <div key={m.user_id} className="flex items-center justify-between group">
+                            <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold text-black dark:text-white">
+                                    {(m.username || '?')[0].toUpperCase()}
+                                </div>
+                                <div>
+                                    <p className="text-xs font-medium text-black dark:text-white">{m.display_name || m.username}</p>
+                                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 capitalize">
+                                        {m.role.replace('_', ' ')}
+                                    </p>
+                                </div>
+                            </div>
+                            {isAdmin && (
+                                <Trash2
+                                    size={12}
+                                    className="opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity cursor-pointer"
+                                    onClick={() => handleRemoveMember(m.user_id)}
+                                />
+                            )}
+                        </div>
+                    ))}
+
+                    {members.length === 0 && (
+                        <p className="text-xs text-neutral-400 dark:text-neutral-600 italic">
+                            No members
+                        </p>
+                    )}
+                </div>
+
+                {isAdmin && (
+                    <div className="mt-auto space-y-2 pt-4">
+                        <div className="flex space-x-2">
+                            <select
+                                value={newMemberRole}
+                                onChange={e => setNewMemberRole(e.target.value)}
+                                className="bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-900 rounded-xl py-2 px-2 text-[10px] focus:outline-none focus:border-black dark:focus:border-white transition-all text-black dark:text-white"
+                            >
+                                <option value="admin">Admin</option>
+                                <option value="chat">Chat</option>
+                                <option value="read_only">Read Only</option>
+                            </select>
+                            <div className="relative flex-1">
+                                <input
+                                    type="text"
+                                    value={newMemberName}
+                                    onChange={e => setNewMemberName(e.target.value)}
+                                    placeholder="Add member..."
+                                    className="w-full bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-900 rounded-xl py-2 px-3 text-xs focus:outline-none focus:border-black dark:focus:border-white transition-all text-black dark:text-white"
+                                    onKeyDown={e => e.key === 'Enter' && handleAddMember()}
+                                />
+                                <button
+                                    onClick={handleAddMember}
+                                    className="absolute right-2 top-1.5 p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-lg cursor-pointer"
+                                >
+                                    <Plus size={14} className="text-neutral-400" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </aside>
     );

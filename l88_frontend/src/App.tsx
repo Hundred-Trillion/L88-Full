@@ -1,12 +1,12 @@
 /**
- * App — Noctis v1 Root Orchestrator.
- * Seamless, achromatic, minimalist layout.
+ * App — Root component matching reference design.
+ * Three-panel layout:  Sidebar | Chat | RightPanel
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { ThemeProvider } from './context/ThemeContext';
 import LoginPage from './components/LoginPage';
 import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel';
@@ -15,28 +15,25 @@ import type { Session, Document, Message } from './types';
 import * as api from './services/api';
 
 function Dashboard() {
-    const { user, effectiveRole } = useAuth();
-    const { theme } = useTheme();
-
-    /* ── State ── */
+    const { effectiveRole } = useAuth();
     const [sessions, setSessions] = useState<Session[]>([]);
-    const [currentSession, setCurrentSession] = useState<Session | null>(null);
+    const [current, setCurrent] = useState<Session | null>(null);
     const [documents, setDocuments] = useState<Document[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isIngesting, setIsIngesting] = useState(false);
-    const [ingestionStep, setIngestionStep] = useState<'Parsing' | 'Chunking' | 'Indexing' | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [ingesting, setIngesting] = useState(false);
+    const fileRef = useRef<HTMLInputElement>(null);
 
-    /* ── Initial Load ── */
+    /* ── Load sessions ── */
     useEffect(() => {
         api.getSessions().then(data => {
             setSessions(data);
-            if (data.length > 0 && !currentSession) setCurrentSession(data[0]);
+            if (data.length > 0 && !current) setCurrent(data[0]);
         }).catch(() => { });
     }, []);
 
-    /* ── Data Sync ── */
-    const loadSessionData = useCallback(async (id: string) => {
+    /* ── Load session data ── */
+    const loadData = useCallback(async (id: string) => {
         try {
             const [msgs, docs] = await Promise.all([
                 api.getMessages(id),
@@ -51,158 +48,147 @@ function Dashboard() {
     }, []);
 
     useEffect(() => {
-        if (currentSession) loadSessionData(currentSession.id);
+        if (current) loadData(current.id);
         else { setMessages([]); setDocuments([]); }
-    }, [currentSession?.id, loadSessionData]);
+    }, [current?.id, loadData]);
 
-    /* ── Handlers ── */
-    const handleCreateSession = async (name: string, webMode: boolean) => {
+    /* ── Sessions ── */
+    const handleCreate = async (name: string, withDocs: boolean) => {
         try {
-            const s = await api.createSession(name, webMode);
+            const s = await api.createSession(name, false);
             setSessions(prev => [s, ...prev]);
-            setCurrentSession(s);
+            setCurrent(s);
+            if (withDocs) {
+                setTimeout(() => fileRef.current?.click(), 200);
+            }
         } catch { }
     };
 
-    const handleDeleteSession = async (id: string) => {
+    const handleDelete = async (id: string) => {
         try {
             await api.deleteSession(id);
-            const updated = sessions.filter(s => s.id !== id);
-            setSessions(updated);
-            if (currentSession?.id === id) setCurrentSession(updated[0] || null);
+            const next = sessions.filter(s => s.id !== id);
+            setSessions(next);
+            if (current?.id === id) setCurrent(next[0] || null);
         } catch { }
     };
 
+    /* ── Chat ── */
     const handleSend = async (query: string) => {
-        if (!currentSession) return;
+        if (!current) return;
         const userMsg: Message = {
             id: crypto.randomUUID(),
-            session_id: currentSession.id,
             role: 'user',
             content: query,
-            confident: true,
-            reasoning: null,
             created_at: new Date().toISOString(),
         };
         setMessages(prev => [...prev, userMsg]);
-        setIsLoading(true);
+        setLoading(true);
         try {
-            const res = await api.sendMessage(currentSession.id, query);
-            const assistantMsg: Message = {
-                id: crypto.randomUUID(),
-                session_id: currentSession.id,
+            const res = await api.sendMessage(current.id, query);
+            const asstMsg: Message = {
+                id: res.message_id || crypto.randomUUID(),
                 role: 'assistant',
                 content: res.answer,
                 confident: res.confident,
-                reasoning: res.reasoning,
+                reasoning: res.reasoning || null,
                 created_at: new Date().toISOString(),
-                sources: res.citations || [], // backend calls it citations, UI expects sources
+                sources: res.sources || [],
             };
-            setMessages(prev => [...prev, assistantMsg]);
+            setMessages(prev => [...prev, asstMsg]);
         } catch (err: any) {
             setMessages(prev => [...prev, {
                 id: crypto.randomUUID(),
-                session_id: currentSession.id,
                 role: 'assistant',
-                content: `Error: Critical system failure. ${err.message}`,
+                content: `Error: ${err.message || 'Something went wrong'}`,
                 confident: false,
                 reasoning: null,
                 created_at: new Date().toISOString(),
             }]);
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
     };
 
-    const handleUpload = async (file: File) => {
-        if (!currentSession) return;
-        setIsIngesting(true);
-        setIngestionStep('Parsing');
+    /* ── Documents ── */
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || !current) return;
+        setIngesting(true);
         try {
-            await api.uploadDocument(currentSession.id, file);
-            // Visual progression simulation
-            await new Promise(r => setTimeout(r, 1200));
-            setIngestionStep('Chunking');
-            await new Promise(r => setTimeout(r, 1200));
-            setIngestionStep('Indexing');
-            await new Promise(r => setTimeout(r, 800));
-
-            const docs = await api.getDocuments(currentSession.id);
-            setDocuments(docs);
+            for (const file of Array.from(files)) {
+                await api.uploadDocument(current.id, file);
+            }
+            setDocuments(await api.getDocuments(current.id));
         } finally {
-            setIsIngesting(false);
-            setIngestionStep(null);
+            setIngesting(false);
+            e.target.value = '';
         }
     };
 
-    const handleAddMember = async (username: string, role: string) => {
-        if (!currentSession) return;
+    const handleToggleDoc = async (docId: string, sel: boolean) => {
+        if (!current) return;
         try {
-            await api.addMember(currentSession.id, username, role);
-        } catch { }
-    };
-
-    const handleToggleDoc = async (docId: string, selected: boolean) => {
-        if (!currentSession) return;
-        try {
-            await api.toggleDocument(currentSession.id, docId, selected);
-            setDocuments(prev => prev.map(d => d.id === docId ? { ...d, selected } : d));
+            await api.toggleDocument(current.id, docId, sel);
+            setDocuments(prev => prev.map(d => d.id === docId ? { ...d, selected: sel } : d));
         } catch { }
     };
 
     const handleDeleteDoc = async (docId: string) => {
-        if (!currentSession) return;
+        if (!current) return;
         try {
-            await api.deleteDocument(currentSession.id, docId);
+            await api.deleteDocument(current.id, docId);
             setDocuments(prev => prev.filter(d => d.id !== docId));
         } catch { }
     };
 
-    const handleToggleWeb = async () => {
-        if (!currentSession) return;
-        const updated = { ...currentSession, web_mode: !currentSession.web_mode };
-        setCurrentSession(updated);
+    const handleToggleWeb = () => {
+        if (!current) return;
+        const updated = { ...current, web_mode: !current.web_mode };
+        setCurrent(updated);
         setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
     };
 
-    const selectedDocCount = documents.filter(d => d.selected).length;
+    const selectedCount = documents.filter(d => d.selected).length;
 
     return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex h-screen w-full bg-noctis-main text-zinc-100 overflow-hidden font-sans selection:bg-white/10"
-        >
+        <div className="flex h-screen w-full bg-white dark:bg-black text-black dark:text-white overflow-hidden font-sans transition-colors duration-300">
             <Sidebar
                 sessions={sessions}
-                currentId={currentSession?.id || null}
-                onSelect={setCurrentSession}
-                onDelete={handleDeleteSession}
-                onCreate={handleCreateSession}
-                onAddMember={handleAddMember}
+                currentId={current?.id || null}
+                onSelect={setCurrent}
+                onDelete={handleDelete}
+                onCreate={handleCreate}
+                onTriggerUpload={() => fileRef.current?.click()}
             />
-
             <ChatPanel
-                session={currentSession}
+                session={current}
                 messages={messages}
-                isLoading={isLoading}
+                isLoading={loading}
                 onSend={handleSend}
-                onUpload={handleUpload}
-                webMode={currentSession?.web_mode || false}
+                webMode={current?.web_mode || false}
                 onToggleWeb={handleToggleWeb}
-                selectedDocCount={selectedDocCount}
+                selectedDocCount={selectedCount}
+                onUploadClick={() => fileRef.current?.click()}
             />
-
             <RightPanel
-                sessionId={currentSession?.id || null}
+                sessionId={current?.id || null}
                 documents={documents}
                 onToggleDoc={handleToggleDoc}
                 onDeleteDoc={handleDeleteDoc}
-                onDocsChanged={() => currentSession && loadSessionData(currentSession.id)}
-                isIngesting={isIngesting}
-                ingestionStep={ingestionStep}
+                isIngesting={ingesting}
             />
-        </motion.div>
+
+            {/* Hidden file input */}
+            <input
+                type="file"
+                ref={fileRef}
+                className="hidden"
+                multiple
+                accept=".pdf"
+                onChange={handleFileUpload}
+            />
+        </div>
     );
 }
 
@@ -221,9 +207,14 @@ function AuthGate() {
     return (
         <AnimatePresence mode="wait">
             {!isAuthenticated ? (
-                <LoginPage key="login" />
+                <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <LoginPage />
+                </motion.div>
             ) : (
-                <Dashboard key="dashboard" />
+                <motion.div key="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="w-full h-full">
+                    <Dashboard />
+                </motion.div>
             )}
         </AnimatePresence>
     );

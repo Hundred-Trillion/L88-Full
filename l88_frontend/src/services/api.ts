@@ -8,6 +8,7 @@
 import type {
     LoginResponse, Session, Document, Message,
     ChatResponse, ScratchPad, SessionMember, SystemStatus,
+    User,
 } from '../types';
 
 let token: string | null = localStorage.getItem('l88_token');
@@ -45,13 +46,24 @@ async function request<T>(url: string, opts: RequestInit = {}): Promise<T> {
 
 /* ── Auth ─────────────────────────────────────────────────── */
 
-export async function login(username: string, password: string): Promise<LoginResponse> {
+/**
+ * Backend returns flat fields. We transform into { access_token, user }.
+ */
+export async function login(username: string, password: string): Promise<{ access_token: string; user: User }> {
     const data = await request<LoginResponse>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ username, password }),
     });
     setToken(data.access_token);
-    return data;
+    return {
+        access_token: data.access_token,
+        user: {
+            id: data.user_id,
+            username: data.username,
+            role: data.role as User['role'],
+            display_name: data.display_name,
+        },
+    };
 }
 
 /* ── Sessions ─────────────────────────────────────────────── */
@@ -129,14 +141,18 @@ export async function getMembers(sessionId: string): Promise<SessionMember[]> {
     return request(`/sessions/${sessionId}/members`);
 }
 
-export async function addMember(sessionId: string, username: string, role: string): Promise<SessionMember> {
+export async function addMember(sessionId: string, username: string, role: string): Promise<{ detail: string }> {
     return request(`/sessions/${sessionId}/members`, {
         method: 'POST',
         body: JSON.stringify({ username, role }),
     });
 }
 
-/* ── Admin ────────────────────────────────────────────────── */
+export async function removeMember(sessionId: string, userId: number): Promise<{ detail: string }> {
+    return request(`/sessions/${sessionId}/members/${userId}`, { method: 'DELETE' });
+}
+
+/* ── Admin / Library ──────────────────────────────────────── */
 
 export async function getSystemStatus(): Promise<SystemStatus> {
     return request('/admin/system/status');
@@ -146,12 +162,16 @@ export async function getAdminUsers() {
     return request('/admin/users');
 }
 
-export async function getLibraryDocs() {
+export async function getLibraryDocs(): Promise<Document[]> {
     return request('/admin/library');
 }
 
-export async function uploadLibraryDoc(file: File) {
+export async function uploadLibraryDoc(file: File): Promise<Document> {
     const form = new FormData();
     form.append('file', file);
     return request('/admin/library', { method: 'POST', body: form });
+}
+
+export async function deleteLibraryDoc(docId: string): Promise<{ detail: string }> {
+    return request(`/admin/library/${docId}`, { method: 'DELETE' });
 }

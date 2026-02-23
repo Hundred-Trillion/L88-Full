@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+sqlmodel
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+langchain>=0.3
+langchain-ollama
+langchain-text-splitters
+langgraph>=0.2
+faiss-cpu
+sentence-transformers>=3.0
+pysbd
+tiktoken
+pymupdf
+httpx

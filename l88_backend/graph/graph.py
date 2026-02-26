@@ -14,6 +14,7 @@ from l88_backend.graph.nodes.query_rewriter import query_rewriter_node
 from l88_backend.graph.nodes.retrieval import retrieval_node
 from l88_backend.graph.nodes.generator import generator_node
 from l88_backend.graph.nodes.self_evaluator import self_evaluator_node
+from l88_backend.graph.nodes.summarizer import summarizer_node
 from l88_backend.graph.edges import (
     route_after_router,
     route_after_analyzer,
@@ -70,6 +71,7 @@ def build_graph() -> StateGraph:
     graph.add_node("self_evaluator", self_evaluator_node)
     graph.add_node("not_found", _not_found_node)
     graph.add_node("error", _error_node)
+    graph.add_node("summarize", summarizer_node)
     graph.add_node("output", _output_node)
 
     # ── Entry point ──────────────────────────────────────────────
@@ -85,6 +87,7 @@ def build_graph() -> StateGraph:
             "rag": "query_analyzer",
             "chat": "generator",
             "error": "error",
+            "summarize": "summarize"
         },
     )
 
@@ -131,5 +134,6 @@ def build_graph() -> StateGraph:
     graph.add_edge("not_found", END)
     graph.add_edge("error", END)
     graph.add_edge("output", END)
+    graph.add_edge("summarize", END)
 
     return graph.compile()

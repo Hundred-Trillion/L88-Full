@@ -14,6 +14,7 @@ def route_after_router(state: L88State) -> str:
 
     "rag"   → query_analyzer
     "chat"  → generator (direct LLM, no chunks)
+    "summarize" → summarize
     "error" → error (terminal)
     """
     return state["route"]
@@ -28,7 +29,7 @@ def route_after_analyzer(state: L88State) -> str:
     if state.get("query_type") == "simple":
         return "retrieval"
     return "query_rewriter"
-    
+
 def route_after_generator(state: L88State) -> str:
     """
     After Generator node.

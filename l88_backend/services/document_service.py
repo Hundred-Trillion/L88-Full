@@ -23,6 +23,7 @@ from l88_backend.ingestion.embedder import embed_texts
 from l88_backend.retrieval.vectorstore import VectorStore
 from l88_backend.services.session_service import update_session_type
 from l88_backend.cache import cache_invalidate_session
+from l88_backend.retrieval.bm25store import BM25Store
 
 def ingest_document(session_id: str, file: UploadFile, user_id: int) -> Document:
     """
@@ -74,6 +75,11 @@ def ingest_document(session_id: str, file: UploadFile, user_id: int) -> Document
     if embeddings is not None:
         store.add_chunks(chunks, embeddings)
     store.save(index_dir)
+
+    # BM25 store
+    bm25_store = BM25Store.load(index_dir)
+    bm25_store.add_chunks(chunks)
+    bm25_store.save(index_dir)
 
     # DB record
     doc = Document(
@@ -181,6 +187,7 @@ def _rebuild_session_index(session_id: str):
         ).all()
 
     store = VectorStore()
+    bm25_store = BM25Store()
 
     for doc in docs:
         filepath = os.path.join(doc_dir, f"{doc.id}.pdf")
@@ -197,5 +204,7 @@ def _rebuild_session_index(session_id: str):
         if texts:
             embeddings = embed_texts(texts)
             store.add_chunks(chunks, embeddings)
+            bm25_store.add_chunks(chunks)
 
     store.save(index_dir)
+    bm25_store.save(index_dir)

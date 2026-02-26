@@ -34,9 +34,15 @@ def retrieval_node(state: L88State) -> dict:
     all_chunks = []
     seen = set()
 
-    # Load session FAISS index
+    # Load session FAISS + BM25 indexes
     session_index_path = os.path.join(SESSION_STORAGE, session_id, "index")
     session_store = VectorStore.load(session_index_path)
+    bm25_store = BM25Store.load(session_index_path)
+
+    # Blend ratio by query type — more BM25 for exact match, more vector for conceptual
+    query_type = state.get("query_type", "simple")
+    bm25_weight = 0.6 if query_type == "simple" else 0.2
+    vector_weight = 1.0 - bm25_weight
 
     # Load library FAISS index (if web mode)
     library_store = None
@@ -49,14 +55,41 @@ def retrieval_node(state: L88State) -> dict:
     for q in queries:
         q_embedding = embed_texts([q], is_query=True)
 
+        for q in queries:
+        q_embedding = embed_texts([q], is_query=True)
+
         # Session FAISS
+        faiss_results = {}
         if session_store.count > 0:
             results = session_store.search(q_embedding[0], top_k=RETRIEVE_TOP_K)
             for chunk in results:
                 key = (chunk.get("doc_id", ""), chunk.get("chunk_idx", 0))
-                if key not in seen:
-                    seen.add(key)
-                    all_chunks.append(chunk)
+                faiss_results[key] = chunk
+
+        # Session BM25
+        bm25_results = {}
+        if bm25_store.count > 0:
+            results = bm25_store.search(q, top_k=RETRIEVE_TOP_K)
+            for chunk in results:
+                key = (chunk.get("doc_id", ""), chunk.get("chunk_idx", 0))
+                bm25_results[key] = chunk
+
+        # Blend scores
+        all_keys = set(faiss_results) | set(bm25_results)
+        for key in all_keys:
+            if key in seen:
+                continue
+            seen.add(key)
+
+            faiss_chunk = faiss_results.get(key)
+            bm25_chunk = bm25_results.get(key)
+
+            chunk = dict(faiss_chunk or bm25_chunk)
+            faiss_score = faiss_chunk.get("score", 0.0) if faiss_chunk else 0.0
+            bm25_score = bm25_chunk.get("bm25_score", 0.0) if bm25_chunk else 0.0
+
+            chunk["score"] = (vector_weight * faiss_score) + (bm25_weight * bm25_score)
+            all_chunks.append(chunk)
 
         # Library FAISS (web mode)
         if library_store and library_store.count > 0:

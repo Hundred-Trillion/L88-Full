@@ -29,8 +29,8 @@ def rerank(query: str, chunks: list[dict], top_n: int = 5) -> list[dict]:
         chunks: List of chunk dicts with at least a 'text' key.
         top_n: Number of top-scoring chunks to return.
 
-    Returns:
-        Top-N chunks sorted by reranker score (desc), with 'rerank_score' added.
+        Returns:
+        Tuple of (top-N chunks sorted by reranker score, top score as float).
     """
     if not chunks:
         return []
@@ -44,4 +44,6 @@ def rerank(query: str, chunks: list[dict], top_n: int = 5) -> list[dict]:
         chunk["rerank_score"] = float(score)
 
     ranked = sorted(chunks, key=lambda c: c["rerank_score"], reverse=True)
-    return ranked[:top_n]
+    top = ranked[:top_n]
+    top_score = top[0]["rerank_score"] if top else 0.0
+    return top, top_score

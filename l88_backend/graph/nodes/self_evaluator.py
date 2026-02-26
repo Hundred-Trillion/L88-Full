@@ -1,62 +1,36 @@
 """
-Self-Evaluator node — LLM re-reads answer against source chunks.
+Self-Evaluator node — uses cross-encoder confidence score from retrieval.
 
-Returns GOOD / UNSURE / BAD verdict + sets confident flag.
-Writes last_verdict from verdict before returning.
+Replaces LLM-as-judge with the rerank_score already computed in retrieval.
+Threshold: >= 0.7 → GOOD, >= 0.4 → UNSURE, < 0.4 → BAD.
+No additional LLM call needed.
 """
 
 from l88_backend.graph.state import L88State
-from l88_backend.llm.client import call_llm
-
-_EVAL_PROMPT = """You are a quality evaluator for a scientific RAG system.
-
-User question: {query}
-
-Generated answer:
-{answer}
-
-Source chunks used:
-{chunks_text}
-
-Evaluate the answer:
-- GOOD: Answer is accurate, well-supported by the sources, and complete.
-- UNSURE: Answer is partially supported or may contain inaccuracies.
-- BAD: Answer is not supported by the sources or is clearly wrong.
-
-Reply with ONLY one word: GOOD, UNSURE, or BAD."""
 
 
 def self_evaluator_node(state: L88State) -> dict:
     """
-    Evaluate the generated answer against the source chunks.
-
-    Writes last_verdict from verdict for the Rewriter on retries.
+    Evaluate confidence using the cross-encoder score from retrieval.
+    No LLM call — pure score thresholding.
     """
     chunks = state.get("chunks", [])
-    chunks_text = "\n\n".join(
-        f"[{c.get('filename', '?')}, page {c.get('page', '?')}]:\n{c.get('text', '')}"
-        for c in chunks
-    )
 
-    prompt = _EVAL_PROMPT.format(
-        query=state["query"],
-        answer=state.get("answer", ""),
-        chunks_text=chunks_text,
-    )
+    if not chunks:
+        return {
+            "verdict": "BAD",
+            "confident": False,
+            "last_verdict": "BAD",
+        }
 
-    response = call_llm(prompt).strip().upper()
+    top_score = chunks[0].get("rerank_score", 0.0)
 
-    # Parse verdict — accept only valid values
-    if response in ("GOOD", "UNSURE", "BAD"):
-        verdict = response
+    if top_score >= 0.7:
+        verdict = "GOOD"
+    elif top_score >= 0.4:
+        verdict = "UNSURE"
     else:
-        # Try to extract from longer response
-        for v in ("GOOD", "UNSURE", "BAD"):
-            if v in response:
-                verdict = v
-                break
-        else:
-            verdict = "UNSURE"
+        verdict = "BAD"
 
     confident = verdict == "GOOD"
 

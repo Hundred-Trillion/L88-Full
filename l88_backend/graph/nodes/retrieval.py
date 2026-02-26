@@ -77,10 +77,12 @@ def retrieval_node(state: L88State) -> dict:
                 filtered.append(chunk)
         all_chunks = filtered
 
-    # Rerank
+# Rerank and capture confidence score
+    confident = False
     if all_chunks:
         original_query = state["query"]
-        all_chunks = rerank(original_query, all_chunks, top_n=RERANK_TOP_N)
-
+        all_chunks, top_score = rerank(original_query, all_chunks, top_n=RERANK_TOP_N)
+        confident = top_score >= 0.7
+    
     found = len(all_chunks) > 0
-    return {"chunks": all_chunks, "found": found}
+    return {"chunks": all_chunks, "found": found, "confident": confident}

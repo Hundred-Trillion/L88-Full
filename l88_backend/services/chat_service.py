@@ -14,6 +14,7 @@ from l88_backend.models.session import Session
 from l88_backend.models.message import Message, Citation
 from l88_backend.services.document_service import get_selected_doc_ids
 from l88_backend.graph.graph import build_graph
+from l88_backend.cache import cache_get, cache_set
 
 # Build graph once at import time
 _graph = build_graph()
@@ -69,6 +70,11 @@ def run_chat(session_id: str, query: str, user_id: int) -> dict:
         "rewritten_queries": [],
     }
 
+    # Check cache before running graph
+    cached = cache_get(session_id, query)
+    if cached:
+        return cached
+
     result = _graph.invoke(initial_state)
 
     # Save assistant message
@@ -105,7 +111,7 @@ def run_chat(session_id: str, query: str, user_id: int) -> dict:
         db.commit()
 
     # Return response
-    return {
+    response = {
         "message_id": asst_msg_id,
         "answer": result.get("answer", ""),
         "reasoning": result.get("reasoning", ""),
@@ -115,3 +121,6 @@ def run_chat(session_id: str, query: str, user_id: int) -> dict:
         "verdict": result.get("verdict", ""),
         "missing_info": result.get("missing_info", ""),
     }
+
+    cache_set(session_id, query, response)
+    return response

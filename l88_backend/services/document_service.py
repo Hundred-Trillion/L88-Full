@@ -22,7 +22,7 @@ from l88_backend.ingestion.chunker import chunk_pages
 from l88_backend.ingestion.embedder import embed_texts
 from l88_backend.retrieval.vectorstore import VectorStore
 from l88_backend.services.session_service import update_session_type
-
+from l88_backend.cache import cache_invalidate_session
 
 def ingest_document(session_id: str, file: UploadFile, user_id: int) -> Document:
     """
@@ -95,6 +95,9 @@ def ingest_document(session_id: str, file: UploadFile, user_id: int) -> Document
     # Update session type
     update_session_type(session_id)
 
+    # Invalidate cache — new doc changes what the session knows
+    cache_invalidate_session(session_id)
+
     return doc
 
 
@@ -120,6 +123,9 @@ def delete_document(session_id: str, doc_id: str):
 
     # Update session type
     update_session_type(session_id)
+
+    # Invalidate cache — deleted doc changes what the session knows
+    cache_invalidate_session(session_id)
 
 
 def toggle_document_selection(session_id: str, doc_id: str, selected: bool) -> Document:

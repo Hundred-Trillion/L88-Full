@@ -38,7 +38,7 @@ User query: {query}"""
 def query_analyzer_node(state: L88State) -> dict:
     """Classify the query and determine rewriting strategy."""
     prompt = _ANALYZER_PROMPT.format(query=state["query"])
-    response = call_llm(prompt)
+    response = call_llm(prompt, small_ctx=True)
 
     # Parse the JSON response
     try:

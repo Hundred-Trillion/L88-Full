@@ -18,21 +18,17 @@ def route_after_router(state: L88State) -> str:
     """
     return state["route"]
 
-
 def route_after_analyzer(state: L88State) -> str:
     """
     After Query Analyzer node.
 
-    All strategies route to query_rewriter — the strategy field
-    tells the rewriter HOW to rewrite, not WHERE to go.
-
-    "single"    → query_rewriter
-    "decompose" → query_rewriter
-    "step_back" → query_rewriter
+    simple → retrieval (skip rewriter, query is fine as-is)
+    everything else → query_rewriter
     """
+    if state.get("query_type") == "simple":
+        return "retrieval"
     return "query_rewriter"
-
-
+    
 def route_after_generator(state: L88State) -> str:
     """
     After Generator node.
@@ -43,6 +39,10 @@ def route_after_generator(state: L88State) -> str:
     EMPTY + rewrite_count < MAX     → query_rewriter (retry)
     EMPTY + exhausted               → not_found (terminal)
     """
+    # Simple queries skip self-evaluator entirely
+    if state.get("query_type") == "simple":
+        return "output"
+
     verdict = state.get("context_verdict", "SUFFICIENT")
     rewrite_count = state.get("rewrite_count", 0)
 
@@ -57,7 +57,6 @@ def route_after_generator(state: L88State) -> str:
 
     # GAP exhausted — proceed with caveat
     return "self_evaluator"
-
 
 def route_after_self_eval(state: L88State) -> str:
     """

@@ -92,7 +92,11 @@ def build_graph() -> StateGraph:
     graph.add_conditional_edges(
         "query_analyzer",
         route_after_analyzer,
-        {"query_rewriter": "query_rewriter"},
+        {
+            "retrieval": "retrieval",
+            "query_rewriter": "query_rewriter",
+        
+        },
     )
 
     # After rewriter → retrieval

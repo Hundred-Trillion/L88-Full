@@ -113,6 +113,7 @@ def build_graph() -> StateGraph:
             "self_evaluator": "self_evaluator",
             "query_rewriter": "query_rewriter",
             "not_found": "not_found",
+            "output": "output",
         },
     )
 

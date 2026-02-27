@@ -33,7 +33,7 @@ export default function RightPanel({
 
     /* ── Scratch Pad ── */
     const [scratchPad, setScratchPad] = useState('');
-    const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+    const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
     useEffect(() => {
         if (!sessionId) return;

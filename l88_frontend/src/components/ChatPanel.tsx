@@ -18,6 +18,20 @@ import type { Session, Message, Source } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/cn';
 
+/**
+ * Normalize LaTeX math delimiters so remark-math can parse them.
+ *
+ * LLMs often output \[...\] (display) and \(...\) (inline).
+ * remark-math expects $$...$$ and $...$ respectively.
+ */
+function normalizeMath(text: string): string {
+    return text
+        // Display math: \[...\]  →  $$...$$
+        .replace(/\\\[([^\]]*?)\\\]/gs, (_m, inner) => `$$${inner}$$`)
+        // Inline math: \(...\)   →  $...$
+        .replace(/\\\(([^)]*?)\\\)/gs, (_m, inner) => `$${inner}$`);
+}
+
 interface Props {
     session: Session | null;
     messages: Message[];
@@ -278,7 +292,7 @@ function MsgBubble({ msg }: { msg: Message }) {
                             remarkPlugins={[remarkMath]}
                             rehypePlugins={[rehypeKatex]}
                         >
-                            {text}
+                            {normalizeMath(text)}
                         </Markdown>
 
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-4">

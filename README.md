@@ -177,4 +177,4 @@ L88-Full/
 
 ## License
 
-Proprietary — L88 Laboratories / Hundred Trillion.
+Proprietary — L88 Laboratories / Hundred Trillion..

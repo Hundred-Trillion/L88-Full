@@ -9,7 +9,6 @@ from langgraph.graph import StateGraph, END
 
 from l88_backend.graph.state import L88State
 from l88_backend.graph.nodes.router import router_node
-from l88_backend.graph.nodes.query_analyzer import query_analyzer_node
 from l88_backend.graph.nodes.query_rewriter import query_rewriter_node
 from l88_backend.graph.nodes.retrieval import retrieval_node
 from l88_backend.graph.nodes.generator import generator_node
@@ -17,7 +16,6 @@ from l88_backend.graph.nodes.self_evaluator import self_evaluator_node
 from l88_backend.graph.nodes.summarizer import summarizer_node
 from l88_backend.graph.edges import (
     route_after_router,
-    route_after_analyzer,
     route_after_generator,
     route_after_self_eval,
 )
@@ -64,7 +62,6 @@ def build_graph() -> StateGraph:
 
     # ── Add nodes ────────────────────────────────────────────────
     graph.add_node("router", router_node)
-    graph.add_node("query_analyzer", query_analyzer_node)
     graph.add_node("query_rewriter", query_rewriter_node)
     graph.add_node("retrieval", retrieval_node)
     graph.add_node("generator", generator_node)
@@ -79,26 +76,15 @@ def build_graph() -> StateGraph:
 
     # ── Conditional edges ────────────────────────────────────────
 
-    # After router: rag → analyzer, chat → generator, error → error
+    # After router: rag → query_rewriter, chat → generator, error → error
     graph.add_conditional_edges(
         "router",
         route_after_router,
         {
-            "rag": "query_analyzer",
+            "rag": "query_rewriter",
             "chat": "generator",
             "error": "error",
             "summarize": "summarize"
-        },
-    )
-
-    # After analyzer: simple → retrieval, complex → query_rewriter
-    graph.add_conditional_edges(
-        "query_analyzer",
-        route_after_analyzer,
-        {
-            "retrieval": "retrieval",
-            "query_rewriter": "query_rewriter",
-        
         },
     )
 

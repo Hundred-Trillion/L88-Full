@@ -15,12 +15,14 @@ HARDCODED_USERS = [
     {"username": "joker",   "password": "whysoserious",  "role": "chat",  "display_name": "Joker"},
 ]
 
-# ── Storage Paths ────────────────────────────────────────────────────
+import os
 
-STORAGE_DIR         = "./storage"
-SESSION_STORAGE     = "./storage/sessions"
-LIBRARY_STORAGE     = "./storage/library"
-DATABASE_URL        = "sqlite:///./l88.db"
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+STORAGE_DIR         = os.path.join(_BASE_DIR, "..", "storage")
+SESSION_STORAGE     = os.path.join(STORAGE_DIR, "sessions")
+LIBRARY_STORAGE     = os.path.join(STORAGE_DIR, "library")
+DATABASE_URL        = f"sqlite:///{os.path.join(STORAGE_DIR, '..', 'l88.db')}"
 
 # ── Ingestion ────────────────────────────────────────────────────────
 
@@ -43,7 +45,7 @@ RERANKER_MODEL      = "BAAI/bge-reranker-v2-m3"
 LLM_MODEL           = "qwen2.5-7b-awq"         # GPU: ~15-25 tok/s on RTX 4000
 LLM_MODEL_FALLBACK  = "qwen2.5:14b"            # CPU fallback: ~2-4 tok/s
 LLM_TEMPERATURE     = 0
-LLM_NUM_CTX         = 16384                     # override Ollama default of 4096
+LLM_NUM_CTX         = 8192                      # override Ollama default of 4096
 
 # ── Auth ─────────────────────────────────────────────────────────────
 

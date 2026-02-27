@@ -8,6 +8,8 @@ L88 is a locally-hosted agentic RAG system for researchers. Upload PDFs, ask que
 
 ## Architecture
 
+For a deep dive into the neural models, retrieval logic, and graph orchestration, see [ARCHITECTURE.md](file:///home/aid-pc/Desktop/Adithya/L88-Full/ARCHITECTURE.md).
+
 ```
 ┌────────────────────────────────────────────────────────────────────┐
 │                      Frontend (React + Vite)                       │

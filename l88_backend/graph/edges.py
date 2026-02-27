@@ -19,16 +19,6 @@ def route_after_router(state: L88State) -> str:
     """
     return state["route"]
 
-def route_after_analyzer(state: L88State) -> str:
-    """
-    After Query Analyzer node.
-
-    simple → retrieval (skip rewriter, query is fine as-is)
-    everything else → query_rewriter
-    """
-    if state.get("query_type") == "simple":
-        return "retrieval"
-    return "query_rewriter"
 
 def route_after_generator(state: L88State) -> str:
     """
@@ -41,7 +31,7 @@ def route_after_generator(state: L88State) -> str:
     EMPTY + exhausted               → not_found (terminal)
     """
     # Simple queries skip self-evaluator entirely
-    if state.get("query_type") == "simple":
+    if state.get("query_type") == "simple" and state.get("context_verdict") == "SUFFICIENT":
         return "output"
 
     verdict = state.get("context_verdict", "SUFFICIENT")

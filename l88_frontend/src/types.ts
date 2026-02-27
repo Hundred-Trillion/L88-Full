@@ -33,6 +33,7 @@ export interface Source {
     page: number;
     excerpt: string;
     doc_id?: string;
+    source?: 'session' | 'library';
 }
 
 export interface Message {

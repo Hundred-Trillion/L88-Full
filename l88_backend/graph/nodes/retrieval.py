@@ -10,6 +10,7 @@ from l88_backend.graph.state import L88State
 from l88_backend.config import RETRIEVE_TOP_K, RERANK_TOP_N, SESSION_STORAGE, LIBRARY_STORAGE
 from l88_backend.ingestion.embedder import embed_texts
 from l88_backend.retrieval.vectorstore import VectorStore
+from l88_backend.retrieval.bm25store import BM25Store
 from l88_backend.retrieval.reranker import rerank
 
 
@@ -26,7 +27,7 @@ def retrieval_node(state: L88State) -> dict:
       6. BGE reranker → top-N
       7. found = len(chunks) > 0
     """
-    queries = state.get("rewritten_queries", [state["query"]])
+    queries = state.get("rewritten_queries") or [state["query"]]
     selected_doc_ids = state.get("selected_doc_ids", [])
     session_id = state["session_id"]
     web_mode = state.get("web_mode", False)
@@ -55,9 +56,6 @@ def retrieval_node(state: L88State) -> dict:
     for q in queries:
         q_embedding = embed_texts([q], is_query=True)
 
-        for q in queries:
-        q_embedding = embed_texts([q], is_query=True)
-
         # Session FAISS
         faiss_results = {}
         if session_store.count > 0:
@@ -76,6 +74,16 @@ def retrieval_node(state: L88State) -> dict:
 
         # Blend scores
         all_keys = set(faiss_results) | set(bm25_results)
+        
+        # Adaptive weighting: if one source is empty, give full weight to the other
+        current_vector_weight = vector_weight
+        current_bm25_weight = bm25_weight
+        
+        if not faiss_results and bm25_results:
+            current_vector_weight, current_bm25_weight = 0.0, 1.0
+        elif faiss_results and not bm25_results:
+            current_vector_weight, current_bm25_weight = 1.0, 0.0
+
         for key in all_keys:
             if key in seen:
                 continue
@@ -88,7 +96,7 @@ def retrieval_node(state: L88State) -> dict:
             faiss_score = faiss_chunk.get("score", 0.0) if faiss_chunk else 0.0
             bm25_score = bm25_chunk.get("bm25_score", 0.0) if bm25_chunk else 0.0
 
-            chunk["score"] = (vector_weight * faiss_score) + (bm25_weight * bm25_score)
+            chunk["score"] = (current_vector_weight * faiss_score) + (current_bm25_weight * bm25_score)
             all_chunks.append(chunk)
 
         # Library FAISS (web mode)
@@ -110,12 +118,14 @@ def retrieval_node(state: L88State) -> dict:
                 filtered.append(chunk)
         all_chunks = filtered
 
-# Rerank and capture confidence score
+    # Rerank and capture confidence score
     confident = False
+    top_score = 0.0
     if all_chunks:
         original_query = state["query"]
         all_chunks, top_score = rerank(original_query, all_chunks, top_n=RERANK_TOP_N)
         confident = top_score >= 0.7
-    
+
     found = len(all_chunks) > 0
+    print(f"[RETRIEVAL] Found {len(all_chunks)} chunks for {len(queries)} queries. Top score: {top_score:.2f}. Confident: {confident}")
     return {"chunks": all_chunks, "found": found, "confident": confident}

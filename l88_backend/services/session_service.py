@@ -150,3 +150,16 @@ def toggle_web_mode(session_id: str, web_mode: bool) -> Session:
         db.commit()
         db.refresh(session)
     return session
+
+
+def rename_session(session_id: str, name: str) -> Session:
+    """Update the name of a session."""
+    with get_session() as db:
+        session = db.get(Session, session_id)
+        if not session:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Session not found")
+        session.name = name
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+    return session

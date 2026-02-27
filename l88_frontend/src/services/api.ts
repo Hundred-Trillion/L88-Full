@@ -83,6 +83,13 @@ export async function deleteSession(id: string): Promise<void> {
     return request(`/sessions/${id}`, { method: 'DELETE' });
 }
 
+export async function renameSession(id: string, name: string): Promise<Session> {
+    return request(`/sessions/${id}/rename`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+    });
+}
+
 /* ── Documents ────────────────────────────────────────────── */
 
 export async function getDocuments(sessionId: string): Promise<Document[]> {

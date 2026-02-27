@@ -9,8 +9,11 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Globe, Plus, MessageSquare, Loader2 } from 'lucide-react';
+import { Send, Globe, Plus, MessageSquare, Loader2, Copy, Check, FileText, Sparkles } from 'lucide-react';
 import Markdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import type { Session, Message, Source } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/cn';
@@ -28,11 +31,31 @@ interface Props {
 
 /** Parse raw JSON content → { text, sources } */
 function extractContent(msg: Message): { text: string; sources: Source[] } {
-    const raw = msg.content || '';
+    let raw = msg.content || '';
     const trimmed = raw.trim();
-    if (trimmed.startsWith('{') && trimmed.includes('"answer"')) {
+
+    // 1. Try to find JSON within the content
+    let jsonStr = trimmed;
+
+    // Handle markdown code fences
+    if (jsonStr.includes('```')) {
+        const match = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (match) jsonStr = match[1].trim();
+    }
+
+    // Find the first { and last } if it's not already a clean JSON string
+    if (!jsonStr.startsWith('{')) {
+        const start = jsonStr.indexOf('{');
+        const end = jsonStr.lastIndexOf('}');
+        if (start !== -1 && end !== -1 && end > start) {
+            jsonStr = jsonStr.substring(start, end + 1);
+        }
+    }
+
+    // 2. Parse and extract answer
+    if (jsonStr.startsWith('{') && jsonStr.includes('"answer"')) {
         try {
-            const parsed = JSON.parse(trimmed);
+            const parsed = JSON.parse(jsonStr);
             if (typeof parsed.answer === 'string') {
                 return {
                     text: parsed.answer,
@@ -177,18 +200,25 @@ export default function ChatPanel({
 function MsgBubble({ msg }: { msg: Message }) {
     const isUser = msg.role === 'user';
     const { text, sources } = useMemo(() => extractContent(msg), [msg]);
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className={cn(
-                "max-w-3xl mx-auto flex flex-col",
+                "max-w-3xl mx-auto flex flex-col group/msg",
                 isUser ? "items-end" : "items-start"
             )}
         >
             <div className={cn(
-                "text-sm leading-relaxed",
+                "text-sm leading-relaxed relative",
                 isUser
                     ? "bg-neutral-100 dark:bg-neutral-900 px-4 py-2.5 rounded-2xl rounded-tr-none text-neutral-800 dark:text-neutral-200"
                     : "w-full"
@@ -197,19 +227,59 @@ function MsgBubble({ msg }: { msg: Message }) {
                     text
                 ) : (
                     <div className="markdown-body dark:prose-invert">
-                        <Markdown>{text}</Markdown>
-                        {sources.length > 0 && (
-                            <div className="mt-6 pt-4 border-t border-neutral-100 dark:border-neutral-900 flex flex-wrap gap-2">
-                                {sources.map((s, i) => (
-                                    <span
-                                        key={i}
-                                        className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 bg-neutral-50 dark:bg-neutral-950 px-2 py-0.5 rounded border border-neutral-100 dark:border-neutral-900"
-                                    >
-                                        {typeof s === 'string' ? s : `${s.filename}${s.page != null ? ` p.${s.page}` : ''}`}
-                                    </span>
-                                ))}
+                        <Markdown
+                            remarkPlugins={[remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                        >
+                            {text}
+                        </Markdown>
+
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex flex-wrap gap-2 items-center">
+                                {sources.length > 0 ? (
+                                    sources.map((s, i) => (
+                                        <div
+                                            key={i}
+                                            className="flex items-center space-x-2 px-2 py-1 rounded-lg border border-neutral-100 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-950 transition-all hover:border-neutral-200 dark:hover:border-neutral-800 group/source"
+                                        >
+                                            {s.source === 'library' ? (
+                                                <span className="flex items-center px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-[8px] font-bold text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 uppercase">
+                                                    <Globe size={10} className="mr-1" />
+                                                    Web
+                                                </span>
+                                            ) : (
+                                                <span className="flex items-center px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-[8px] font-bold text-neutral-500 border border-neutral-200 dark:border-neutral-800 uppercase">
+                                                    <FileText size={10} className="mr-1" />
+                                                    Doc
+                                                </span>
+                                            )}
+                                            <span className="text-[10px] font-medium text-neutral-600 dark:text-neutral-400 truncate max-w-[120px]" title={s.filename}>
+                                                {s.filename}
+                                            </span>
+                                            {s.page != null && (
+                                                <span className="text-[9px] text-neutral-400 font-mono">p.{s.page}</span>
+                                            )}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="flex items-center px-2 py-1 rounded-lg border border-purple-100 dark:border-purple-900/30 bg-purple-50/30 dark:bg-purple-950/10">
+                                        <span className="flex items-center px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900 text-[8px] font-bold text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/50 uppercase">
+                                            <Sparkles size={10} className="mr-1" />
+                                            Training Data
+                                        </span>
+                                        <span className="ml-2 text-[10px] font-medium text-purple-600/70 dark:text-purple-400/70">Paramanandha Internal Knowledge</span>
+                                    </div>
+                                )}
                             </div>
-                        )}
+
+                            <button
+                                onClick={handleCopy}
+                                className="flex items-center space-x-1.5 px-2 py-1 rounded-lg border border-neutral-100 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-950 text-neutral-400 dark:text-neutral-500 hover:text-black dark:hover:text-white hover:border-neutral-300 dark:hover:border-neutral-700 transition-all opacity-0 group-hover/msg:opacity-100 cursor-pointer text-[10px] font-medium uppercase tracking-wider"
+                            >
+                                {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                                <span>{copied ? 'Copied' : 'Copy'}</span>
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

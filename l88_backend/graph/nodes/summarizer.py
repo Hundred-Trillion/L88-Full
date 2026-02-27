@@ -28,11 +28,11 @@ def summarizer_node(state: L88State) -> dict:
     selected_doc_ids = state.get("selected_doc_ids", [])
 
     # Load chunks from disk for selected docs
-    chunks_path = os.path.join(SESSION_STORAGE, session_id, "chunks.json")
+    metadata_path = os.path.join(SESSION_STORAGE, session_id, "index", "metadata.json")
     all_text = ""
 
     try:
-        with open(chunks_path, "r") as f:
+        with open(metadata_path, "r") as f:
             all_chunks = json.load(f)
 
         doc_chunks = [

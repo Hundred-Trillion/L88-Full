@@ -12,7 +12,8 @@ from l88_backend.graph.state import L88State
 
 _SUMMARIZE_KEYWORDS = {
     "summarize", "summary", "summarise", "overview",
-    "tldr", "tl;dr", "brief", "outline", "recap"
+    "tldr", "tl;dr", "tl-dr", "brief", "outline", "recap",
+    "summerize", "summerise"
 }
 
 def router_node(state: L88State) -> dict:

@@ -11,6 +11,7 @@ import LoginPage from './components/LoginPage';
 import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel';
 import RightPanel from './components/RightPanel';
+import LibraryManager from './components/LibraryManager';
 import type { Session, Document, Message } from './types';
 import * as api from './services/api';
 
@@ -22,6 +23,7 @@ function Dashboard() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(false);
     const [ingesting, setIngesting] = useState(false);
+    const [view, setView] = useState<'dashboard' | 'library'>('dashboard');
     const fileRef = useRef<HTMLInputElement>(null);
 
     /* ── Load sessions ── */
@@ -70,6 +72,14 @@ function Dashboard() {
             const next = sessions.filter(s => s.id !== id);
             setSessions(next);
             if (current?.id === id) setCurrent(next[0] || null);
+        } catch { }
+    };
+
+    const handleRename = async (id: string, name: string) => {
+        try {
+            const updated = await api.renameSession(id, name);
+            setSessions(prev => prev.map(s => s.id === id ? updated : s));
+            if (current?.id === id) setCurrent(updated);
         } catch { }
     };
 
@@ -158,26 +168,36 @@ function Dashboard() {
                 currentId={current?.id || null}
                 onSelect={setCurrent}
                 onDelete={handleDelete}
+                onRename={handleRename}
                 onCreate={handleCreate}
                 onTriggerUpload={() => fileRef.current?.click()}
+                onNavigate={setView}
+                currentView={view}
             />
-            <ChatPanel
-                session={current}
-                messages={messages}
-                isLoading={loading}
-                onSend={handleSend}
-                webMode={current?.web_mode || false}
-                onToggleWeb={handleToggleWeb}
-                selectedDocCount={selectedCount}
-                onUploadClick={() => fileRef.current?.click()}
-            />
-            <RightPanel
-                sessionId={current?.id || null}
-                documents={documents}
-                onToggleDoc={handleToggleDoc}
-                onDeleteDoc={handleDeleteDoc}
-                isIngesting={ingesting}
-            />
+
+            {view === 'dashboard' ? (
+                <>
+                    <ChatPanel
+                        session={current}
+                        messages={messages}
+                        isLoading={loading}
+                        onSend={handleSend}
+                        webMode={current?.web_mode || false}
+                        onToggleWeb={handleToggleWeb}
+                        selectedDocCount={selectedCount}
+                        onUploadClick={() => fileRef.current?.click()}
+                    />
+                    <RightPanel
+                        sessionId={current?.id || null}
+                        documents={documents}
+                        onToggleDoc={handleToggleDoc}
+                        onDeleteDoc={handleDeleteDoc}
+                        isIngesting={ingesting}
+                    />
+                </>
+            ) : (
+                <LibraryManager onBack={() => setView('dashboard')} />
+            )}
 
             {/* Hidden file input */}
             <input

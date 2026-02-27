@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from l88_backend.services.auth_service import get_current_user, require_session_role
 from l88_backend.services.session_service import (
     create_session, list_sessions, get_session_by_id,
-    delete_session, toggle_web_mode,
+    delete_session, toggle_web_mode, rename_session,
 )
 from l88_backend.models.user import User
 
@@ -29,6 +29,10 @@ class CreateSessionRequest(BaseModel):
 
 class WebModeRequest(BaseModel):
     web_mode: bool
+
+
+class RenameSessionRequest(BaseModel):
+    name: str
 
 
 @router.get("")
@@ -62,3 +66,10 @@ def set_web_mode(session_id: str, body: WebModeRequest, user: User = Depends(get
     """Toggle web mode. Requires chat role minimum."""
     _check_chat(user, session_id)
     return toggle_web_mode(session_id, body.web_mode)
+
+
+@router.patch("/{session_id}/rename")
+def rename_current_session(session_id: str, body: RenameSessionRequest, user: User = Depends(get_current_user)):
+    """Rename a session. Requires admin role in that session."""
+    _check_admin(user, session_id)
+    return rename_session(session_id, body.name)

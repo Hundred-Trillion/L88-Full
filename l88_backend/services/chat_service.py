@@ -67,7 +67,7 @@ def run_chat(session_id: str, query: str, user_id: int) -> dict:
         "last_verdict": "",
         "chunks": [],
         "found": False,
-        "rewritten_queries": [],
+        "rewritten_queries": None,
     }
 
     # Check cache before running graph

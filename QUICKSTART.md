@@ -4,6 +4,10 @@
 
 ```bash
 # From: ~/Desktop/Adithya/L88-Full/
+
+# Install Tesseract (needed for OCR on scanned PDFs)
+conda install -c conda-forge tesseract -y
+
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt

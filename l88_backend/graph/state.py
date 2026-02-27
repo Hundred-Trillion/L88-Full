@@ -15,6 +15,7 @@ class L88State(TypedDict):
     session_id: str
     selected_doc_ids: list[str]
     web_mode: bool
+    session_type: str
 
     # ── Router ───────────────────────────────────────────────────
     route: str                      # "rag" | "chat" | "error"

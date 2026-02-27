@@ -56,57 +56,57 @@ def retrieval_node(state: L88State) -> dict:
     for q in queries:
         q_embedding = embed_texts([q], is_query=True)
 
-        # Session FAISS
-        faiss_results = {}
-        if session_store.count > 0:
-            results = session_store.search(q_embedding[0], top_k=RETRIEVE_TOP_K)
-            for chunk in results:
-                key = (chunk.get("doc_id", ""), chunk.get("chunk_idx", 0))
-                faiss_results[key] = chunk
+        if web_mode:
+            # EXCLUSIVE WEB MODE: Search Library FAISS Only
+            if library_store and library_store.count > 0:
+                lib_results = library_store.search(q_embedding[0], top_k=RETRIEVE_TOP_K)
+                for chunk in lib_results:
+                    key = (chunk.get("doc_id", ""), chunk.get("chunk_idx", 0))
+                    if key not in seen:
+                        seen.add(key)
+                        all_chunks.append(chunk)
+        else:
+            # SESSION MODE: Session FAISS + BM25
+            faiss_results = {}
+            if session_store.count > 0:
+                results = session_store.search(q_embedding[0], top_k=RETRIEVE_TOP_K)
+                for chunk in results:
+                    key = (chunk.get("doc_id", ""), chunk.get("chunk_idx", 0))
+                    faiss_results[key] = chunk
 
-        # Session BM25
-        bm25_results = {}
-        if bm25_store.count > 0:
-            results = bm25_store.search(q, top_k=RETRIEVE_TOP_K)
-            for chunk in results:
-                key = (chunk.get("doc_id", ""), chunk.get("chunk_idx", 0))
-                bm25_results[key] = chunk
+            bm25_results = {}
+            if bm25_store.count > 0:
+                results = bm25_store.search(q, top_k=RETRIEVE_TOP_K)
+                for chunk in results:
+                    key = (chunk.get("doc_id", ""), chunk.get("chunk_idx", 0))
+                    bm25_results[key] = chunk
 
-        # Blend scores
-        all_keys = set(faiss_results) | set(bm25_results)
-        
-        # Adaptive weighting: if one source is empty, give full weight to the other
-        current_vector_weight = vector_weight
-        current_bm25_weight = bm25_weight
-        
-        if not faiss_results and bm25_results:
-            current_vector_weight, current_bm25_weight = 0.0, 1.0
-        elif faiss_results and not bm25_results:
-            current_vector_weight, current_bm25_weight = 1.0, 0.0
+            # Blend scores
+            all_keys = set(faiss_results) | set(bm25_results)
+            
+            # Adaptive weighting
+            current_vector_weight = vector_weight
+            current_bm25_weight = bm25_weight
+            
+            if not faiss_results and bm25_results:
+                current_vector_weight, current_bm25_weight = 0.0, 1.0
+            elif faiss_results and not bm25_results:
+                current_vector_weight, current_bm25_weight = 1.0, 0.0
 
-        for key in all_keys:
-            if key in seen:
-                continue
-            seen.add(key)
+            for key in all_keys:
+                if key in seen:
+                    continue
+                seen.add(key)
 
-            faiss_chunk = faiss_results.get(key)
-            bm25_chunk = bm25_results.get(key)
+                faiss_chunk = faiss_results.get(key)
+                bm25_chunk = bm25_results.get(key)
 
-            chunk = dict(faiss_chunk or bm25_chunk)
-            faiss_score = faiss_chunk.get("score", 0.0) if faiss_chunk else 0.0
-            bm25_score = bm25_chunk.get("bm25_score", 0.0) if bm25_chunk else 0.0
+                chunk = dict(faiss_chunk or bm25_chunk)
+                faiss_score = faiss_chunk.get("score", 0.0) if faiss_chunk else 0.0
+                bm25_score = bm25_chunk.get("bm25_score", 0.0) if bm25_chunk else 0.0
 
-            chunk["score"] = (current_vector_weight * faiss_score) + (current_bm25_weight * bm25_score)
-            all_chunks.append(chunk)
-
-        # Library FAISS (web mode)
-        if library_store and library_store.count > 0:
-            lib_results = library_store.search(q_embedding[0], top_k=RETRIEVE_TOP_K)
-            for chunk in lib_results:
-                key = (chunk.get("doc_id", ""), chunk.get("chunk_idx", 0))
-                if key not in seen:
-                    seen.add(key)
-                    all_chunks.append(chunk)
+                chunk["score"] = (current_vector_weight * faiss_score) + (current_bm25_weight * bm25_score)
+                all_chunks.append(chunk)
 
     # Filter by selected doc IDs (session docs only — library docs always included)
     if selected_doc_ids:

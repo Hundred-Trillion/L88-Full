@@ -61,6 +61,7 @@ def get_messages(session_id: str, user: User = Depends(get_current_user)):
                     {
                         "filename": c.filename,
                         "page": c.page,
+                        "source": c.source,
                         "excerpt": c.excerpt,
                     }
                     for c in citations

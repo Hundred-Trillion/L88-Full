@@ -27,4 +27,5 @@ class Citation(SQLModel, table=True):
     document_id: str                                 # FK → Document
     filename: str
     page: int
+    source: str = "session"
     excerpt: str = ""

@@ -22,6 +22,12 @@ def router_node(state: L88State) -> dict:
     query_lower = state["query"].lower()
 
     is_summarize = any(kw in query_lower for kw in _SUMMARIZE_KEYWORDS)
+    web_mode = state.get("web_mode", False)
+
+    # ── Logic ──────────────────────────────────────────────
+    # WEB MODE OVERRIDE: If hit, we ALWAYS go to RAG/Library regardless of session type.
+    if web_mode:
+        return {"route": "rag"}
 
     if has_docs and is_summarize:
         route = "summarize"

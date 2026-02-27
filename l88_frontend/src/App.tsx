@@ -152,11 +152,14 @@ function Dashboard() {
         } catch { }
     };
 
-    const handleToggleWeb = () => {
+    const handleToggleWeb = async () => {
         if (!current) return;
-        const updated = { ...current, web_mode: !current.web_mode };
-        setCurrent(updated);
-        setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+        const newMode = !current.web_mode;
+        try {
+            const updated = await api.setWebMode(current.id, newMode);
+            setCurrent(updated);
+            setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+        } catch { }
     };
 
     const selectedCount = documents.filter(d => d.selected).length;

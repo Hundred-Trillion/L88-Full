@@ -72,6 +72,13 @@ export async function getSessions(): Promise<Session[]> {
     return request('/sessions');
 }
 
+export async function setWebMode(id: string, webMode: boolean): Promise<Session> {
+    return request(`/sessions/${id}/web-mode`, {
+        method: 'PATCH',
+        body: JSON.stringify({ web_mode: webMode }),
+    });
+}
+
 export async function createSession(name: string, webMode: boolean): Promise<Session> {
     return request('/sessions', {
         method: 'POST',

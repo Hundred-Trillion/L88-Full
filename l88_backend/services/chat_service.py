@@ -63,6 +63,7 @@ def run_chat(session_id: str, query: str, user_id: int) -> dict:
         "session_id": session_id,
         "selected_doc_ids": selected_doc_ids,
         "web_mode": session.web_mode,
+        "session_type": session.session_type,
         "rewrite_count": 0,
         "last_verdict": "",
         "chunks": [],
@@ -100,6 +101,7 @@ def run_chat(session_id: str, query: str, user_id: int) -> dict:
             document_id=src.get("doc_id", ""),
             filename=src.get("filename", ""),
             page=src.get("page", 0),
+            source=src.get("source", "session"),
             excerpt=src.get("excerpt", ""),
         )
         citations.append(citation)

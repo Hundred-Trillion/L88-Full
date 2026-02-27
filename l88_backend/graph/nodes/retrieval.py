@@ -14,6 +14,22 @@ from l88_backend.retrieval.bm25store import BM25Store
 from l88_backend.retrieval.reranker import rerank
 
 
+def _normalize_scores(chunks: list[dict], score_key: str) -> list[dict]:
+    """
+    Min-max normalize a score field to [0, 1] across the list.
+    Prevents BM25's unbounded scores from dominating the weighted blend.
+    """
+    if not chunks:
+        return chunks
+    scores = [c.get(score_key, 0.0) for c in chunks]
+    min_s, max_s = min(scores), max(scores)
+    rng = max_s - min_s
+    for c in chunks:
+        raw = c.get(score_key, 0.0)
+        c[score_key] = (raw - min_s) / rng if rng > 0 else 1.0
+    return chunks
+
+
 def retrieval_node(state: L88State) -> dict:
     """
     Retrieve and rerank chunks for the rewritten queries.
@@ -76,12 +92,13 @@ def retrieval_node(state: L88State) -> dict:
 
             bm25_results = {}
             if bm25_store.count > 0:
-                results = bm25_store.search(q, top_k=RETRIEVE_TOP_K)
-                for chunk in results:
+                raw_bm25 = bm25_store.search(q, top_k=RETRIEVE_TOP_K)
+                normalized_bm25 = _normalize_scores(raw_bm25, "bm25_score")
+                for chunk in normalized_bm25:
                     key = (chunk.get("doc_id", ""), chunk.get("chunk_idx", 0))
                     bm25_results[key] = chunk
 
-            # Blend scores
+            # Blend scores (both are now in [0,1] range)
             all_keys = set(faiss_results) | set(bm25_results)
             
             # Adaptive weighting
@@ -118,6 +135,9 @@ def retrieval_node(state: L88State) -> dict:
                 filtered.append(chunk)
         all_chunks = filtered
 
+    # Capture "initial" state for debugging
+    initial_chunks = [dict(c) for c in all_chunks[:20]] # Limit to 20 for DB size
+
     # Rerank and capture confidence score
     confident = False
     top_score = 0.0
@@ -126,6 +146,17 @@ def retrieval_node(state: L88State) -> dict:
         all_chunks, top_score = rerank(original_query, all_chunks, top_n=RERANK_TOP_N)
         confident = top_score >= 0.7
 
+    # Capture "final" state
+    finalists = [dict(c) for c in all_chunks]
+
     found = len(all_chunks) > 0
     print(f"[RETRIEVAL] Found {len(all_chunks)} chunks for {len(queries)} queries. Top score: {top_score:.2f}. Confident: {confident}")
-    return {"chunks": all_chunks, "found": found, "confident": confident}
+    return {
+        "chunks": all_chunks, 
+        "found": found, 
+        "confident": confident,
+        "retrieval_metadata": {
+            "initial": initial_chunks,
+            "reranked": finalists
+        }
+    }

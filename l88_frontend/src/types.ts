@@ -47,6 +47,10 @@ export interface Message {
     missing_info?: string | null;
     created_at: string;
     sources?: Source[];
+    retrieval_metadata?: {
+        initial: any[];
+        reranked: any[];
+    };
 }
 
 export interface SessionMember {
@@ -87,6 +91,10 @@ export interface ChatResponse {
     context_verdict: string;
     verdict: string;
     missing_info: string;
+    retrieval_metadata?: {
+        initial: any[];
+        reranked: any[];
+    };
 }
 
 export interface SystemStatus {

@@ -25,6 +25,7 @@ function Dashboard() {
     const [ingesting, setIngesting] = useState(false);
     const [view, setView] = useState<'dashboard' | 'library'>('dashboard');
     const fileRef = useRef<HTMLInputElement>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     /* ── Load sessions ── */
     useEffect(() => {
@@ -94,8 +95,11 @@ function Dashboard() {
         };
         setMessages(prev => [...prev, userMsg]);
         setLoading(true);
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
         try {
-            const res = await api.sendMessage(current.id, query);
+            const res = await api.sendMessage(current.id, query, controller.signal);
             const asstMsg: Message = {
                 id: res.message_id || crypto.randomUUID(),
                 role: 'assistant',
@@ -104,9 +108,14 @@ function Dashboard() {
                 reasoning: res.reasoning || null,
                 created_at: new Date().toISOString(),
                 sources: res.sources || [],
+                retrieval_metadata: res.retrieval_metadata,
             };
             setMessages(prev => [...prev, asstMsg]);
         } catch (err: any) {
+            if (err.name === 'AbortError') {
+                console.log('Generation stopped by user');
+                return;
+            }
             setMessages(prev => [...prev, {
                 id: crypto.randomUUID(),
                 role: 'assistant',
@@ -117,6 +126,15 @@ function Dashboard() {
             }]);
         } finally {
             setLoading(false);
+            abortControllerRef.current = null;
+        }
+    };
+
+    const handleStop = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            setLoading(false);
+            abortControllerRef.current = null;
         }
     };
 
@@ -144,12 +162,19 @@ function Dashboard() {
         } catch { }
     };
 
+    const [deletingDocs, setDeletingDocs] = useState<Set<string>>(new Set());
+
     const handleDeleteDoc = async (docId: string) => {
         if (!current) return;
+        setDeletingDocs(prev => new Set(prev).add(docId));
         try {
             await api.deleteDocument(current.id, docId);
             setDocuments(prev => prev.filter(d => d.id !== docId));
-        } catch { }
+        } catch (err) {
+            console.error('[delete doc] failed:', err);
+        } finally {
+            setDeletingDocs(prev => { const s = new Set(prev); s.delete(docId); return s; });
+        }
     };
 
     const handleToggleWeb = async () => {
@@ -185,6 +210,7 @@ function Dashboard() {
                         messages={messages}
                         isLoading={loading}
                         onSend={handleSend}
+                        onStop={handleStop}
                         webMode={current?.web_mode || false}
                         onToggleWeb={handleToggleWeb}
                         selectedDocCount={selectedCount}
@@ -195,6 +221,7 @@ function Dashboard() {
                         documents={documents}
                         onToggleDoc={handleToggleDoc}
                         onDeleteDoc={handleDeleteDoc}
+                        deletingDocs={deletingDocs}
                         isIngesting={ingesting}
                     />
                 </>

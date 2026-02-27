@@ -11,7 +11,7 @@ import json
 import shutil
 from datetime import datetime, timezone
 
-from fastapi import HTTPException, UploadFile, status
+from fastapi import HTTPException, UploadFile, status, BackgroundTasks
 from sqlmodel import select
 
 from l88_backend.config import SESSION_STORAGE
@@ -107,10 +107,10 @@ def ingest_document(session_id: str, file: UploadFile, user_id: int) -> Document
     return doc
 
 
-def delete_document(session_id: str, doc_id: str):
+def delete_document(session_id: str, doc_id: str, background_tasks: BackgroundTasks = None):
     """
-    Delete a document: remove from DB, then rebuild the session FAISS index
-    without the deleted document's chunks.
+    Delete a document: remove from DB and disk.
+    Index rebuild runs in the background so the HTTP response returns immediately.
     """
     with get_session() as db:
         doc = db.get(Document, doc_id)
@@ -124,14 +124,17 @@ def delete_document(session_id: str, doc_id: str):
     if os.path.exists(filepath):
         os.remove(filepath)
 
-    # Rebuild FAISS index without deleted doc
-    _rebuild_session_index(session_id)
+    # Schedule the slow FAISS+BM25 rebuild in the background
+    def _rebuild():
+        _rebuild_session_index(session_id)
+        update_session_type(session_id)
+        cache_invalidate_session(session_id)
 
-    # Update session type
-    update_session_type(session_id)
-
-    # Invalidate cache — deleted doc changes what the session knows
-    cache_invalidate_session(session_id)
+    if background_tasks:
+        background_tasks.add_task(_rebuild)
+    else:
+        # Direct call fallback (e.g. called without BackgroundTasks context)
+        _rebuild()
 
 
 def toggle_document_selection(session_id: str, doc_id: str, selected: bool) -> Document:

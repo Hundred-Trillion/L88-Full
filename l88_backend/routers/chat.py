@@ -5,6 +5,8 @@ POST /sessions/{id}/chat — run agentic RAG graph.
 GET  /sessions/{id}/messages — fetch chat history.
 """
 
+from typing import List
+import json
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlmodel import select
@@ -49,6 +51,7 @@ def get_messages(session_id: str, user: User = Depends(get_current_user)):
                 "content": msg.content,
                 "reasoning": msg.reasoning,
                 "confident": msg.confident,
+                "retrieval_metadata": json.loads(msg.retrieval_debug or "{}"),
                 "context_verdict": msg.context_verdict,
                 "missing_info": msg.missing_info,
                 "created_at": msg.created_at.isoformat(),

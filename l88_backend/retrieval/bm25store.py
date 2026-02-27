@@ -8,13 +8,36 @@ Saved/loaded as JSON to persist across restarts.
 import json
 import os
 import pickle
+import re
 
 from rank_bm25 import BM25Okapi
 
 
+# Common English stopwords — removing them improves BM25 precision for
+# scientific text where function words add noise.
+_STOPWORDS = {
+    "a", "an", "the", "is", "it", "its", "in", "on", "at", "to", "for",
+    "of", "and", "or", "but", "with", "by", "from", "as", "this", "that",
+    "these", "those", "be", "was", "were", "are", "has", "have", "had",
+    "will", "would", "can", "could", "may", "might", "shall", "should",
+    "do", "does", "did", "not", "so", "if", "then", "than", "into",
+    "through", "about", "up", "out", "which", "who", "what", "how",
+    "when", "where", "their", "they", "he", "she", "we", "you", "i",
+    "also", "such", "other", "used", "using", "use",
+}
+
+
 def _tokenize(text: str) -> list[str]:
-    """Simple whitespace + lowercase tokenizer."""
-    return text.lower().split()
+    """
+    Improved tokenizer:
+    - lowercase
+    - split on whitespace and punctuation (not hyphens — keep compound terms)
+    - remove stopwords
+    - drop single-character tokens
+    """
+    # Split on whitespace + most punctuation, keep hyphens and underscores
+    tokens = re.split(r'[\s,;:.!?()\[\]{}/\\|@#$%^&*+=<>"\']', text.lower())
+    return [t for t in tokens if t and t not in _STOPWORDS and len(t) > 1]
 
 
 class BM25Store:
@@ -47,6 +70,9 @@ class BM25Store:
             return []
 
         tokens = _tokenize(query)
+        if not tokens:
+            return []
+
         scores = self._bm25.get_scores(tokens)
 
         scored = []

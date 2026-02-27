@@ -30,7 +30,8 @@ Instructions:
 2. ZERO TRAINING KNOWLEDGE: Do NOT use your general training knowledge or any information not present in the chunks. If the answer is not in the chunks, explicitly state: "The provided documentation does not contain the answer to this question."
 3. Personas: Maintain the Paramanandha persona but prioritize accuracy over helpfulness if the data is missing.
 4. Formatting: Answer with inline citations [filename, page N]. Use LaTeX for mathematical/physics expressions ($E=mc^2$).
-5. Reasoning: Show your full chain of thought in a <think> block.
+5. BREADTH & DEPTH: Provide detailed, comprehensive, and scientifically rich answers. Do not summarize too aggressively; if the information is available, utilize it to provide a thorough explanation.
+6. Reasoning: Show your full chain of thought in a <think> block.
 
 Return ONLY valid JSON:
 {{
@@ -190,4 +191,5 @@ def generator_node(state: L88State) -> dict:
         "sources": sources,
         "missing_info": missing_info,
         "last_verdict": context_verdict,
+        "retrieval_metadata": state.get("retrieval_metadata", {}),
     }

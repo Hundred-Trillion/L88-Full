@@ -30,7 +30,7 @@ async function request<T>(url: string, opts: RequestInit = {}): Promise<T> {
         headers['Content-Type'] = 'application/json';
     }
 
-    const res = await fetch(url, { ...opts, headers });
+    const res = await fetch(url, { ...opts, headers, signal: opts.signal });
     if (res.status === 401) {
         setToken(null);
         window.location.reload();
@@ -129,10 +129,11 @@ export async function getMessages(sessionId: string): Promise<Message[]> {
     return request(`/sessions/${sessionId}/messages`);
 }
 
-export async function sendMessage(sessionId: string, query: string): Promise<ChatResponse> {
+export async function sendMessage(sessionId: string, query: string, signal?: AbortSignal): Promise<ChatResponse> {
     return request(`/sessions/${sessionId}/chat`, {
         method: 'POST',
         body: JSON.stringify({ query }),
+        signal
     });
 }
 

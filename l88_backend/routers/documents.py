@@ -2,7 +2,7 @@
 Documents router — upload, list, select, delete session documents.
 """
 
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks
 from pydantic import BaseModel
 
 from l88_backend.services.auth_service import get_current_user, require_session_role
@@ -40,10 +40,15 @@ def upload_document(
 
 
 @router.delete("/documents/{doc_id}")
-def remove_document(session_id: str, doc_id: str, user: User = Depends(get_current_user)):
+def remove_document(
+    session_id: str,
+    doc_id: str,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+):
     """Delete a document. Requires admin role."""
     _check_admin(user, session_id)
-    delete_document(session_id, doc_id)
+    delete_document(session_id, doc_id, background_tasks)
     return {"detail": "Document deleted"}
 
 

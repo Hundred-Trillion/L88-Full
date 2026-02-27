@@ -32,6 +32,7 @@ class L88State(TypedDict):
     # ── Retrieval ────────────────────────────────────────────────
     chunks: list[dict]              # {text, doc_id, filename, page, chunk_idx, score}
     found: bool
+    retrieval_metadata: dict         # {initial: [chunks], reranked: [chunks]}
 
     # ── Generator (collapsed) ────────────────────────────────────
     context_verdict: str            # "SUFFICIENT" | "GAP" | "EMPTY"

@@ -5,6 +5,7 @@ Validates sources → resolves selected docs → runs graph → saves messages +
 """
 
 import uuid
+import json
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -90,6 +91,7 @@ def run_chat(session_id: str, query: str, user_id: int) -> dict:
         confident=result.get("confident", True),
         context_verdict=result.get("context_verdict", ""),
         missing_info=result.get("missing_info", ""),
+        retrieval_debug=json.dumps(result.get("retrieval_metadata", {})),
         created_at=datetime.now(timezone.utc),
     )
 
@@ -122,6 +124,7 @@ def run_chat(session_id: str, query: str, user_id: int) -> dict:
         "context_verdict": result.get("context_verdict", ""),
         "verdict": result.get("verdict", ""),
         "missing_info": result.get("missing_info", ""),
+        "retrieval_metadata": result.get("retrieval_metadata", {}),
     }
 
     cache_set(session_id, query, response)

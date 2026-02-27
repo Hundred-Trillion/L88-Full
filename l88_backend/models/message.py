@@ -16,6 +16,7 @@ class Message(SQLModel, table=True):
     confident: bool = True                           # False → ⚠ in UI
     context_verdict: str = ""                        # "SUFFICIENT" | "GAP" | "EMPTY"
     missing_info: str = ""                           # populated when GAP
+    retrieval_debug: str = "{}"                      # JSON string: {initial: [], reranked: []}
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

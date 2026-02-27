@@ -9,7 +9,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Globe, Plus, MessageSquare, Loader2, Copy, Check, FileText, Sparkles } from 'lucide-react';
+import { Send, Globe, Plus, MessageSquare, Loader2, Copy, Check, FileText, Sparkles, ChevronDown, ChevronUp, Activity, Square } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -23,6 +23,7 @@ interface Props {
     messages: Message[];
     isLoading: boolean;
     onSend: (msg: string) => void;
+    onStop?: () => void;
     webMode: boolean;
     onToggleWeb: () => void;
     selectedDocCount: number;
@@ -68,7 +69,7 @@ function extractContent(msg: Message): { text: string; sources: Source[] } {
 }
 
 export default function ChatPanel({
-    session, messages, isLoading, onSend,
+    session, messages, isLoading, onSend, onStop,
     webMode, onToggleWeb, selectedDocCount, onUploadClick,
 }: Props) {
     const { effectiveRole } = useAuth();
@@ -133,13 +134,7 @@ export default function ChatPanel({
                     <MsgBubble key={msg.id} msg={msg} />
                 ))}
 
-                {isLoading && (
-                    <div className="max-w-3xl mx-auto w-full flex items-center space-x-2 text-neutral-300 dark:text-neutral-700">
-                        <div className="w-1.5 h-1.5 bg-neutral-300 dark:bg-neutral-700 rounded-full animate-bounce" />
-                        <div className="w-1.5 h-1.5 bg-neutral-300 dark:bg-neutral-700 rounded-full animate-bounce [animation-delay:0.2s]" />
-                        <div className="w-1.5 h-1.5 bg-neutral-300 dark:bg-neutral-700 rounded-full animate-bounce [animation-delay:0.4s]" />
-                    </div>
-                )}
+                {isLoading && <PipelineStatus />}
 
                 <div ref={endRef} />
             </div>
@@ -176,11 +171,16 @@ export default function ChatPanel({
                         rows={1}
                     />
                     <button
-                        onClick={send}
-                        disabled={!input.trim() || isLoading || !canChat || !session}
-                        className="absolute right-4 bottom-4 p-2 bg-black dark:bg-white text-white dark:text-black rounded-xl disabled:opacity-20 disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                        onClick={isLoading ? onStop : send}
+                        disabled={(!input.trim() && !isLoading) || !canChat || !session}
+                        className={cn(
+                            "absolute right-4 bottom-4 p-2 rounded-xl transition-all cursor-pointer",
+                            isLoading
+                                ? "bg-red-500 text-white hover:bg-red-600 scale-100"
+                                : "bg-black dark:bg-white text-white dark:text-black hover:scale-105 active:scale-95 disabled:opacity-20"
+                        )}
                     >
-                        <Send size={20} />
+                        {isLoading ? <Square size={20} fill="currentColor" /> : <Send size={20} />}
                     </button>
                 </div>
                 <div className="max-w-3xl mx-auto mt-3 flex justify-between items-center px-4">
@@ -196,7 +196,54 @@ export default function ChatPanel({
     );
 }
 
-/* Message Bubble */
+/* Pipeline Status — ambient processing indicator */
+const PIPELINE_STEPS = [
+    { label: 'analyzing query', delay: 0 },
+    { label: 'rewriting queries', delay: 2500 },
+    { label: 'searching vector store', delay: 5000 },
+    { label: 'reranking evidence', delay: 9000 },
+    { label: 'generating answer', delay: 13000 },
+];
+
+function PipelineStatus() {
+    const [stepIdx, setStepIdx] = useState(0);
+    const [tick, setTick] = useState(0);
+
+    useEffect(() => {
+        const next = PIPELINE_STEPS[stepIdx + 1];
+        if (!next) return;
+        const interval = next.delay - PIPELINE_STEPS[stepIdx].delay;
+        const timer = setTimeout(() => setStepIdx(prev => prev + 1), interval);
+        return () => clearTimeout(timer);
+    }, [stepIdx]);
+
+    // subtle ellipsis animation
+    useEffect(() => {
+        const i = setInterval(() => setTick(t => (t + 1) % 4), 500);
+        return () => clearInterval(i);
+    }, []);
+
+    const dots = '.'.repeat(tick);
+    const label = PIPELINE_STEPS[stepIdx]?.label ?? 'processing';
+
+    return (
+        <div className="max-w-3xl mx-auto w-full">
+            <AnimatePresence mode="wait">
+                <motion.p
+                    key={stepIdx}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.3 }}
+                    className="text-[10px] font-mono text-neutral-300 dark:text-neutral-600 tracking-widest select-none"
+                >
+                    {label}{dots}
+                </motion.p>
+            </AnimatePresence>
+        </div>
+    );
+}
+
 function MsgBubble({ msg }: { msg: Message }) {
     const isUser = msg.role === 'user';
     const { text, sources } = useMemo(() => extractContent(msg), [msg]);
@@ -262,13 +309,15 @@ function MsgBubble({ msg }: { msg: Message }) {
                                         </div>
                                     ))
                                 ) : (
-                                    <div className="flex items-center px-2 py-1 rounded-lg border border-purple-100 dark:border-purple-900/30 bg-purple-50/30 dark:bg-purple-950/10">
-                                        <span className="flex items-center px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900 text-[8px] font-bold text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/50 uppercase">
-                                            <Sparkles size={10} className="mr-1" />
-                                            Training Data
-                                        </span>
-                                        <span className="ml-2 text-[10px] font-medium text-purple-600/70 dark:text-purple-400/70">Paramanandha Internal Knowledge</span>
-                                    </div>
+                                    text.includes("No information found") ? null : (
+                                        <div className="flex items-center px-2 py-1 rounded-lg border border-purple-100 dark:border-purple-900/30 bg-purple-50/30 dark:bg-purple-950/10">
+                                            <span className="flex items-center px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900 text-[8px] font-bold text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/50 uppercase">
+                                                <Sparkles size={10} className="mr-1" />
+                                                Training Data
+                                            </span>
+                                            <span className="ml-2 text-[10px] font-medium text-purple-600/70 dark:text-purple-400/70">Paramanandha Internal Knowledge</span>
+                                        </div>
+                                    )
                                 )}
                             </div>
 
@@ -280,9 +329,89 @@ function MsgBubble({ msg }: { msg: Message }) {
                                 <span>{copied ? 'Copied' : 'Copy'}</span>
                             </button>
                         </div>
+
+                        {/* Retrieval Insights Dropdown */}
+                        {msg.retrieval_metadata && (
+                            <RetrievalInsights metadata={msg.retrieval_metadata} />
+                        )}
                     </div>
                 )}
             </div>
         </motion.div>
+    );
+}
+
+function RetrievalInsights({ metadata }: { metadata: any }) {
+    const [open, setOpen] = useState(false);
+    const initial = metadata.initial || [];
+    const reranked = metadata.reranked || [];
+
+    if (initial.length === 0 && reranked.length === 0) return null;
+
+    return (
+        <div className="mt-4 pt-4 border-t border-dashed border-neutral-100 dark:border-neutral-900/50">
+            <button
+                onClick={() => setOpen(!open)}
+                className="flex items-center space-x-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400 hover:text-black dark:hover:text-white transition-colors"
+            >
+                <Activity size={12} className={cn(open && "text-blue-500")} />
+                <span>Retrieval Insights</span>
+                {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+
+            <AnimatePresence>
+                {open && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                    >
+                        <div className="py-4 space-y-4">
+                            {/* Reranked Winners */}
+                            <div>
+                                <h4 className="text-[10px] font-mono font-bold text-neutral-500 mb-2 uppercase">Ranked Evidence ({reranked.length})</h4>
+                                <div className="space-y-2">
+                                    {reranked.map((c: any, i: number) => (
+                                        <div key={i} className="p-2 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-900">
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <span className="text-[9px] font-mono text-neutral-400">{c.filename} {c.page && `| p.${c.page}`}</span>
+                                                <span className="text-[9px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-1 py-0.5 rounded">Relevancy: {(c.score * 100).toFixed(0)}%</span>
+                                            </div>
+                                            <p className="text-[11px] text-neutral-600 dark:text-neutral-400 line-clamp-2 italic leading-relaxed">"{c.text}"</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Initial Candidates */}
+                            {initial.length > reranked.length && (
+                                <div>
+                                    <h4 className="text-[10px] font-mono font-bold text-neutral-500 mb-2 uppercase">Initial Candidates ({initial.length})</h4>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {initial.map((c: any, i: number) => {
+                                            const isSelected = reranked.some((r: any) => r.doc_id === c.doc_id && r.chunk_idx === c.chunk_idx);
+                                            return (
+                                                <span
+                                                    key={i}
+                                                    className={cn(
+                                                        "text-[9px] px-1.5 py-0.5 rounded-md border",
+                                                        isSelected
+                                                            ? "border-blue-200 dark:border-blue-900/50 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
+                                                            : "border-neutral-100 dark:border-neutral-900 text-neutral-400 bg-neutral-50 dark:bg-neutral-950"
+                                                    )}
+                                                >
+                                                    Ch.{c.chunk_idx}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 }

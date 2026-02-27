@@ -19,15 +19,17 @@ interface Props {
     documents: Document[];
     onToggleDoc: (id: string, selected: boolean) => void;
     onDeleteDoc: (id: string) => void;
+    deletingDocs?: Set<string>;
     isIngesting: boolean;
 }
 
 export default function RightPanel({
-    sessionId, documents, onToggleDoc, onDeleteDoc, isIngesting,
+    sessionId, documents, onToggleDoc, onDeleteDoc, deletingDocs, isIngesting,
 }: Props) {
     const { effectiveRole } = useAuth();
     const isAdmin = effectiveRole === 'admin';
     const canToggle = effectiveRole !== 'read_only';
+    const _deleting = deletingDocs ?? new Set<string>();
 
     /* ── Scratch Pad ── */
     const [scratchPad, setScratchPad] = useState('');
@@ -141,11 +143,13 @@ export default function RightPanel({
                                 </p>
                             </div>
                             {isAdmin && (
-                                <Trash2
-                                    size={12}
-                                    className="opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity shrink-0 cursor-pointer ml-1"
-                                    onClick={e => { e.stopPropagation(); onDeleteDoc(doc.id); }}
-                                />
+                                _deleting.has(doc.id)
+                                    ? <Loader2 size={12} className="spinner shrink-0 ml-1 text-neutral-400" />
+                                    : <Trash2
+                                        size={12}
+                                        className="opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity shrink-0 cursor-pointer ml-1"
+                                        onClick={e => { e.stopPropagation(); onDeleteDoc(doc.id); }}
+                                    />
                             )}
                         </div>
                     ))}

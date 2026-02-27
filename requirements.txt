@@ -13,4 +13,6 @@ sentence-transformers>=3.0
 pysbd
 tiktoken
 pymupdf
+pytesseract
+pillow
 httpx

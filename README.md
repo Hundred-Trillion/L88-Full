@@ -220,4 +220,8 @@ All tunable parameters live in `l88_backend/config.py`:
 
 ## License
 
-Proprietary — L88 Laboratories / Hundred Trillion.
+This project is licensed under the Business Source License 1.1 (BUSL-1.1).  
+Commercial use is not permitted until the Change Date.  
+See the LICENSE file for full details.
+
+© L88 Laboratories / Hundred Trillion.
